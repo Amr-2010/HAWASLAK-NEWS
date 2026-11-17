@@ -29,7 +29,7 @@ app.MapGet("/health", () => Results.Ok(new { status = "ok", app = "Hawaslak News
 app.MapGet("/api/news", async (HttpContext http, int? limit, CancellationToken ct) =>
 {
     var ds = http.RequestServices.GetService<NpgsqlDataSource>();
-    if (ds is null) return Results.Ok(Array.Empty<object>());
+    if (ds is null) return Results.Ok(new List<object>());
     var items = new List<object>();
     try
     {
