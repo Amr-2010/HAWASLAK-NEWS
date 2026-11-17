@@ -26,7 +26,7 @@ public sealed class NewsAiService
     public async Task<ArabicNewsDraft> Generate(AiRequest input,CancellationToken ct)
     {
         if(string.IsNullOrWhiteSpace(input.Title) || input.Title.Length>1000) throw new ArgumentException("Valid source title required");
-        var prompt = "اكتب JSON فقط بالمفاتيح title_ar,summary_ar,category,country_code. العنوان بالعربية الفصحى واضح وموضوعي بحد أقصى 140 حرفا. الملخص بالعربية جملتان بحد أقصى 350 حرفا، لا تضف أي تفاصيل غير موجودة في النص المقدم. إذا توفر العنوان فقط فاذكر وصفا مختصرا ومحايدا لموضوع العنوان دون اختراع أرقام أو تصريحات أو تفاصيل. أعد اسم الدولة المعنية بالخبر برمز ISO من حرفين إذا كان واضحا، وإلا استعمل رمز الدولة الوارد. اختر category من general,politics,economy,sports,technology,health,education,arts. لا تنسخ المقالات، ولا تدعي الوصول إلى روابط خارجية.\nTitle: "+input.Title+"\nPermitted context: "+(input.Context??"")+"\nSource: "+(input.Source??"")+"\nDefault country: "+(input.CountryCode??"");
+        var prompt = "اكتب JSON فقط بالمفاتيح title_ar,summary_ar,category,country_code. العنوان بالعربية الفصحى واضح وموضوعي بحد أقصى 140 حرفا. اكتب ملخصًا صحفيًا بالعربية من 100 إلى 180 كلمة فقط إذا كان الوصف الأصلي يوفر تفاصيل كافية، في فقرات قصيرة واضحة. إذا كان المتاح عنوانًا فقط، فاكتب جملة أو جملتين قصيرتين فقط ولا تختلق أي وقائع أو خلفيات أو تصريحات أو أرقام. لا تكرر الجمل لإطالة النص. لا تضف أي تفاصيل غير موجودة في البيانات المقدمة. أعد اسم الدولة المعنية بالخبر برمز ISO من حرفين إذا كان واضحا، وإلا استعمل رمز الدولة الوارد. اختر category من general,politics,economy,sports,technology,health,education,arts. لا تنسخ المقالات، ولا تدعي الوصول إلى روابط خارجية.\nTitle: "+input.Title+"\nPermitted context: "+(input.Context??"")+"\nSource: "+(input.Source??"")+"\nDefault country: "+(input.CountryCode??"");
         var errors=new List<string>();
         foreach(var p in Providers().Where(p=>p.Configured))
         {
@@ -64,7 +64,7 @@ public sealed class NewsAiService
         {
             url="https://api.cloudflare.com/client/v4/accounts/"+Uri.EscapeDataString(Env("CLOUDFLARE_ACCOUNT_ID"))+"/ai/run/"+model;
             key=Env("CLOUDFLARE_API_TOKEN");
-            payload=new {messages=new[]{new {role="user",content=prompt}},max_tokens=650};
+            payload=new {messages=new[]{new {role="user",content=prompt}},max_tokens=1100};
         }
         else
         {
