@@ -23,9 +23,12 @@ if (!string.IsNullOrWhiteSpace(dbUrl))
 }
 var app = builder.Build();
 app.UseCors("web");
+app.UseDefaultFiles();
+app.UseStaticFiles();
 app.MapGet("/health", () => Results.Ok(new { status = "ok", app = "Hawaslak News" }));
-app.MapGet("/api/news", async (NpgsqlDataSource? ds, int? limit, CancellationToken ct) =>
+app.MapGet("/api/news", async (HttpContext http, int? limit, CancellationToken ct) =>
 {
+    var ds = http.RequestServices.GetService<NpgsqlDataSource>();
     if (ds is null) return Results.Ok(Array.Empty<object>());
     var items = new List<object>();
     try
@@ -42,4 +45,5 @@ app.MapGet("/api/news", async (NpgsqlDataSource? ds, int? limit, CancellationTok
         return Results.Ok(items);
     }
 });
+app.MapFallbackToFile("index.html");
 app.Run();
