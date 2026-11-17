@@ -7,6 +7,8 @@ using Npgsql;
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddHttpClient("rss", c => { c.Timeout = TimeSpan.FromSeconds(15); c.DefaultRequestHeaders.UserAgent.ParseAdd("HawaslakNews/0.2 (+news aggregator; contact site administrator)"); });
 builder.Services.AddSingleton<NewsStore>();
+builder.Services.AddHttpClient("ai", c => c.Timeout = TimeSpan.FromSeconds(25));
+builder.Services.AddSingleton<NewsAiService>();
 builder.Services.AddSingleton<NewsCollector>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<NewsCollector>());
 var app = builder.Build();
@@ -59,6 +61,21 @@ app.MapPut("/api/admin/sources/{id:long}", async (HttpRequest request, NewsStore
 {
     if (!Authorized(request)) return Results.Unauthorized();
     return await store.EditSource(id,edit,ct) ? Results.Ok(new { saved=true }) : Results.NotFound();
+});
+app.MapGet("/api/admin/ai/providers", (HttpRequest request, NewsAiService ai) =>
+    Authorized(request) ? Results.Ok(ai.Providers()) : Results.Unauthorized());
+app.MapPost("/api/admin/articles/{id:long}/ai-prepare", async (HttpRequest request, NewsStore store, NewsAiService ai, long id, CancellationToken ct) =>
+{
+    if (!Authorized(request)) return Results.Unauthorized();
+    var source = await store.GetForAi(id,ct);
+    if (source is null) return Results.NotFound();
+    try
+    {
+        var draft=await ai.Generate(new AiRequest(source.Value.Title,null,source.Value.Source,source.Value.Country),ct);
+        await store.SaveAiDraft(id,draft,ct);
+        return Results.Ok(new { saved=true, draft });
+    }
+    catch (InvalidOperationException e) { return Results.Json(new { error=e.Message },statusCode:503); }
 });
 app.MapFallbackToFile("index.html");
 app.Run();
@@ -134,6 +151,9 @@ ALTER TABLE news_items ADD COLUMN IF NOT EXISTS country_code char(2);
 ALTER TABLE news_items ADD COLUMN IF NOT EXISTS category text NOT NULL DEFAULT 'general';
 UPDATE news_items SET country_code = f.country_code FROM news_feeds f WHERE news_items.feed_id=f.id AND news_items.country_code IS NULL;
 ALTER TABLE news_items ADD COLUMN IF NOT EXISTS title_ar text;
+ALTER TABLE news_items ADD COLUMN IF NOT EXISTS ai_provider text;
+ALTER TABLE news_items ADD COLUMN IF NOT EXISTS ai_model text;
+ALTER TABLE news_items ADD COLUMN IF NOT EXISTS ai_processed_at timestamptz;
 CREATE INDEX IF NOT EXISTS news_items_country_category ON news_items(country_code,category,original_published_at DESC);
 CREATE INDEX IF NOT EXISTS news_items_recent ON news_items(original_published_at DESC);
 CREATE TABLE IF NOT EXISTS news_images (
@@ -183,11 +203,32 @@ ORDER BY i.original_published_at DESC LIMIT 100", conn);
     {
         if (!Configured) return Array.Empty<object>();
         await using var conn=await Open(ct);
-        await using var cmd=new NpgsqlCommand("SELECT i.id,i.title,f.name,i.author_name,i.status,i.original_url,i.original_published_at,i.image_count,i.country_code,i.category,i.title_ar,i.subject FROM news_items i JOIN news_feeds f ON f.id=i.feed_id ORDER BY i.imported_at DESC LIMIT 100",conn);
+        await using var cmd=new NpgsqlCommand("SELECT i.id,i.title,f.name,i.author_name,i.status,i.original_url,i.original_published_at,i.image_count,i.country_code,i.category,i.title_ar,i.subject,i.ai_provider,i.ai_processed_at FROM news_items i JOIN news_feeds f ON f.id=i.feed_id ORDER BY i.imported_at DESC LIMIT 100",conn);
         await using var r=await cmd.ExecuteReaderAsync(ct);
         var rows=new List<object>();
-        while(await r.ReadAsync(ct)) rows.Add(new {id=r.GetInt64(0),title=r.GetString(1),source=r.GetString(2),author=r.IsDBNull(3)?null:r.GetString(3),status=r.GetString(4),url=r.GetString(5),publishedAt=r.GetDateTime(6),images=r.GetInt32(7),country=r.IsDBNull(8)?null:r.GetString(8).Trim(),category=r.GetString(9),titleAr=r.IsDBNull(10)?null:r.GetString(10),subject=r.IsDBNull(11)?null:r.GetString(11)});
+        while(await r.ReadAsync(ct)) rows.Add(new {id=r.GetInt64(0),title=r.GetString(1),source=r.GetString(2),author=r.IsDBNull(3)?null:r.GetString(3),status=r.GetString(4),url=r.GetString(5),publishedAt=r.GetDateTime(6),images=r.GetInt32(7),country=r.IsDBNull(8)?null:r.GetString(8).Trim(),category=r.GetString(9),titleAr=r.IsDBNull(10)?null:r.GetString(10),subject=r.IsDBNull(11)?null:r.GetString(11),aiProvider=r.IsDBNull(12)?null:r.GetString(12),aiProcessedAt=r.IsDBNull(13)?(DateTime?)null:r.GetDateTime(13)});
         return rows;
+    }
+    public async Task<(string Title,string Source,string Country)?> GetForAi(long id,CancellationToken ct)
+    {
+        await using var conn=await Open(ct);
+        await using var cmd=new NpgsqlCommand(@"SELECT i.title,f.name,COALESCE(i.country_code,f.country_code) FROM news_items i JOIN news_feeds f ON f.id=i.feed_id WHERE i.id=@id AND i.status='pending'",conn);
+        cmd.Parameters.AddWithValue("id",id);
+        await using var r=await cmd.ExecuteReaderAsync(ct);
+        return await r.ReadAsync(ct) ? (r.GetString(0),r.GetString(1),r.GetString(2).Trim()) : null;
+    }
+    public async Task SaveAiDraft(long id,ArabicNewsDraft draft,CancellationToken ct)
+    {
+        await using var conn=await Open(ct);
+        await using var cmd=new NpgsqlCommand(@"UPDATE news_items SET title_ar=@title,subject=@summary,category=@category,country_code=@country,ai_provider=@provider,ai_model=@model,ai_processed_at=now() WHERE id=@id AND status='pending'",conn);
+        cmd.Parameters.AddWithValue("id",id);
+        cmd.Parameters.AddWithValue("title",draft.TitleAr);
+        cmd.Parameters.AddWithValue("summary",draft.SummaryAr);
+        cmd.Parameters.AddWithValue("category",draft.Category);
+        cmd.Parameters.AddWithValue("country",draft.CountryCode);
+        cmd.Parameters.AddWithValue("provider",draft.Provider);
+        cmd.Parameters.AddWithValue("model",draft.Model);
+        await cmd.ExecuteNonQueryAsync(ct);
     }
     public async Task<bool> EditArticle(long id,ArticleEdit edit,CancellationToken ct)
     {
