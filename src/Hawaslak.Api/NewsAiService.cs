@@ -84,7 +84,13 @@ public sealed class NewsAiService
         if(provider=="Cloudflare Workers AI")
         {
             var result=doc.RootElement.GetProperty("result");
-            if(result.TryGetProperty("response",out var text)) return text.GetString()??"";
+            if(result.TryGetProperty("response",out var responseValue))
+            {
+                if(responseValue.ValueKind==JsonValueKind.String) return responseValue.GetString()??"";
+                if(responseValue.ValueKind==JsonValueKind.Object) return responseValue.GetRawText();
+                if(responseValue.ValueKind==JsonValueKind.Array) return responseValue.GetRawText();
+            }
+            if(result.TryGetProperty("title_ar",out _)) return result.GetRawText();
             if(result.TryGetProperty("choices",out var choices)) return choices[0].GetProperty("message").GetProperty("content").GetString()??"";
             throw new FormatException("Unexpected Workers AI response");
         }
