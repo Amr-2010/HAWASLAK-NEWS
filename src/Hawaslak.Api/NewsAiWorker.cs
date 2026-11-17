@@ -1,6 +1,6 @@
 using System.Threading;
 
-public sealed class NewsAiWorker : BackgroundService
+sealed class NewsAiWorker : BackgroundService
 {
     private readonly NewsStore _store;
     private readonly NewsAiService _ai;
