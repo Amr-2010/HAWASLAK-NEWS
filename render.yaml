@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: hawaslak-news-api
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: WEB_ORIGINS
+        sync: false
+  - type: web
+    name: hawaslak-news-web
+    runtime: static
+    buildCommand: cd src/Hawaslak.Web && npm install && npm run build
+    staticPublishPath: ./src/Hawaslak.Web/dist
+    envVars:
+      - key: VITE_API_URL
+        sync: false
