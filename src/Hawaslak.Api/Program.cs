@@ -78,7 +78,7 @@ app.MapPost("/api/admin/articles/{id:long}/ai-prepare", async (HttpRequest reque
     if (source is null) return Results.NotFound();
     try
     {
-        var draft=await ai.Generate(new AiRequest(source.Value.Title,null,source.Value.Source,source.Value.Country),ct);
+        var draft=await ai.Generate(new AiRequest(source.Value.Title,source.Value.Context,source.Value.Source,source.Value.Country),ct);
         await store.SaveAiDraft(id,draft,ct);
         return Results.Ok(new { saved=true, draft });
     }
@@ -98,7 +98,7 @@ record SourceInput(string Name, string CountryCode, string FeedUrl, bool AutoPub
 record ArticleEdit(string TitleAr,string? Subject,string CountryCode,string Category);
 record StatusEdit(string Status);
 record SourceEdit(bool Enabled,bool AutoPublishAllowed);
-record FeedItem(string Title, string Url, string? Author, DateTimeOffset Published, string? Excerpt);
+record FeedItem(string Title, string Url, string? Author, DateTimeOffset Published, string? Excerpt, string? ImageUrl);
 
 sealed class NewsStore
 {
@@ -158,6 +158,8 @@ ALTER TABLE news_items ADD COLUMN IF NOT EXISTS country_code char(2);
 ALTER TABLE news_items ADD COLUMN IF NOT EXISTS category text NOT NULL DEFAULT 'general';
 UPDATE news_items SET country_code = f.country_code FROM news_feeds f WHERE news_items.feed_id=f.id AND news_items.country_code IS NULL;
 ALTER TABLE news_items ADD COLUMN IF NOT EXISTS title_ar text;
+ALTER TABLE news_items ADD COLUMN IF NOT EXISTS rss_excerpt text;
+ALTER TABLE news_items ADD COLUMN IF NOT EXISTS source_image_url text;
 ALTER TABLE news_items ADD COLUMN IF NOT EXISTS ai_provider text;
 ALTER TABLE news_items ADD COLUMN IF NOT EXISTS ai_model text;
 ALTER TABLE news_items ADD COLUMN IF NOT EXISTS ai_processed_at timestamptz;
@@ -210,31 +212,31 @@ ORDER BY i.original_published_at DESC LIMIT 100", conn);
     {
         if (!Configured) return Array.Empty<object>();
         await using var conn=await Open(ct);
-        await using var cmd=new NpgsqlCommand("SELECT i.id,i.title,f.name,i.author_name,i.status,i.original_url,i.original_published_at,i.image_count,i.country_code,i.category,i.title_ar,i.subject,i.ai_provider,i.ai_processed_at FROM news_items i JOIN news_feeds f ON f.id=i.feed_id ORDER BY i.imported_at DESC LIMIT 100",conn);
+        await using var cmd=new NpgsqlCommand("SELECT i.id,i.title,f.name,i.author_name,i.status,i.original_url,i.original_published_at,i.image_count,i.country_code,i.category,i.title_ar,i.subject,i.ai_provider,i.ai_processed_at,i.rss_excerpt,i.source_image_url FROM news_items i JOIN news_feeds f ON f.id=i.feed_id ORDER BY i.imported_at DESC LIMIT 100",conn);
         await using var r=await cmd.ExecuteReaderAsync(ct);
         var rows=new List<object>();
-        while(await r.ReadAsync(ct)) rows.Add(new {id=r.GetInt64(0),title=r.GetString(1),source=r.GetString(2),author=r.IsDBNull(3)?null:r.GetString(3),status=r.GetString(4),url=r.GetString(5),publishedAt=r.GetDateTime(6),images=r.GetInt32(7),country=r.IsDBNull(8)?null:r.GetString(8).Trim(),category=r.GetString(9),titleAr=r.IsDBNull(10)?null:r.GetString(10),subject=r.IsDBNull(11)?null:r.GetString(11),aiProvider=r.IsDBNull(12)?null:r.GetString(12),aiProcessedAt=r.IsDBNull(13)?(DateTime?)null:r.GetDateTime(13)});
+        while(await r.ReadAsync(ct)) rows.Add(new {id=r.GetInt64(0),title=r.GetString(1),source=r.GetString(2),author=r.IsDBNull(3)?null:r.GetString(3),status=r.GetString(4),url=r.GetString(5),publishedAt=r.GetDateTime(6),images=r.GetInt32(7),country=r.IsDBNull(8)?null:r.GetString(8).Trim(),category=r.GetString(9),titleAr=r.IsDBNull(10)?null:r.GetString(10),subject=r.IsDBNull(11)?null:r.GetString(11),aiProvider=r.IsDBNull(12)?null:r.GetString(12),aiProcessedAt=r.IsDBNull(13)?(DateTime?)null:r.GetDateTime(13),rssExcerpt=r.IsDBNull(14)?null:r.GetString(14),sourceImageUrl=r.IsDBNull(15)?null:r.GetString(15)});
         return rows;
     }
-    public async Task<List<(long Id,string Title,string Source,string Country)>> GetPendingAiBatch(int max,CancellationToken ct)
+    public async Task<List<(long Id,string Title,string Source,string Country,string? Context)>> GetPendingAiBatch(int max,CancellationToken ct)
     {
-        var rows=new List<(long,string,string,string)>();
+        var rows=new List<(long,string,string,string,string?)>();
         await using var conn=await Open(ct);
-        await using var cmd=new NpgsqlCommand(@"SELECT i.id,i.title,f.name,COALESCE(i.country_code,f.country_code) FROM news_items i JOIN news_feeds f ON f.id=i.feed_id
+        await using var cmd=new NpgsqlCommand(@"SELECT i.id,i.title,f.name,COALESCE(i.country_code,f.country_code),i.rss_excerpt FROM news_items i JOIN news_feeds f ON f.id=i.feed_id
 WHERE i.status='pending' AND i.ai_processed_at IS NULL AND (i.title_ar IS NULL OR i.title_ar='')
 ORDER BY i.imported_at LIMIT @max",conn);
         cmd.Parameters.AddWithValue("max",Math.Clamp(max,1,10));
         await using var reader=await cmd.ExecuteReaderAsync(ct);
-        while(await reader.ReadAsync(ct)) rows.Add((reader.GetInt64(0),reader.GetString(1),reader.GetString(2),reader.GetString(3).Trim()));
+        while(await reader.ReadAsync(ct)) rows.Add((reader.GetInt64(0),reader.GetString(1),reader.GetString(2),reader.GetString(3).Trim(),reader.IsDBNull(4)?null:reader.GetString(4)));
         return rows;
     }
-    public async Task<(string Title,string Source,string Country)?> GetForAi(long id,CancellationToken ct)
+    public async Task<(string Title,string Source,string Country,string? Context)?> GetForAi(long id,CancellationToken ct)
     {
         await using var conn=await Open(ct);
-        await using var cmd=new NpgsqlCommand(@"SELECT i.title,f.name,COALESCE(i.country_code,f.country_code) FROM news_items i JOIN news_feeds f ON f.id=i.feed_id WHERE i.id=@id AND i.status='pending'",conn);
+        await using var cmd=new NpgsqlCommand(@"SELECT i.title,f.name,COALESCE(i.country_code,f.country_code),i.rss_excerpt FROM news_items i JOIN news_feeds f ON f.id=i.feed_id WHERE i.id=@id AND i.status='pending'",conn);
         cmd.Parameters.AddWithValue("id",id);
         await using var r=await cmd.ExecuteReaderAsync(ct);
-        return await r.ReadAsync(ct) ? (r.GetString(0),r.GetString(1),r.GetString(2).Trim()) : null;
+        return await r.ReadAsync(ct) ? (r.GetString(0),r.GetString(1),r.GetString(2).Trim(),r.IsDBNull(3)?null:r.GetString(3)) : null;
     }
     public async Task SaveAiDraft(long id,ArabicNewsDraft draft,CancellationToken ct)
     {
@@ -309,8 +311,8 @@ VALUES(@n,@c,@u,@a,@l) ON CONFLICT(feed_url) DO UPDATE SET name=EXCLUDED.name,co
         var total=0;
         foreach(var item in items)
         {
-            await using var cmd=new NpgsqlCommand(@"INSERT INTO news_items(feed_id,title,subject,original_url,author_name,original_published_at,status,published_at,country_code,category)
-VALUES(@f,@t,@s,@u,@a,@p,@status,@published,(SELECT country_code FROM news_feeds WHERE id=@f),@category) ON CONFLICT(original_url) DO NOTHING",conn);
+            await using var cmd=new NpgsqlCommand(@"INSERT INTO news_items(feed_id,title,subject,original_url,author_name,original_published_at,status,published_at,country_code,category,rss_excerpt,source_image_url)
+VALUES(@f,@t,@s,@u,@a,@p,@status,@published,(SELECT country_code FROM news_feeds WHERE id=@f),@category,@excerpt,@image) ON CONFLICT(original_url) DO UPDATE SET rss_excerpt=COALESCE(news_items.rss_excerpt,EXCLUDED.rss_excerpt),source_image_url=COALESCE(news_items.source_image_url,EXCLUDED.source_image_url)",conn);
             cmd.Parameters.AddWithValue("f",feedId);
             cmd.Parameters.AddWithValue("t",item.Title);
             // Do not copy full article bodies. Excerpts require publisher permission and are not imported by default.
@@ -319,6 +321,8 @@ VALUES(@f,@t,@s,@u,@a,@p,@status,@published,(SELECT country_code FROM news_feeds
             cmd.Parameters.AddWithValue("a",(object?)item.Author??DBNull.Value);
             cmd.Parameters.AddWithValue("p",item.Published.UtcDateTime);
             cmd.Parameters.AddWithValue("category", Classify(item.Title));
+            cmd.Parameters.AddWithValue("excerpt",(object?)item.Excerpt??DBNull.Value);
+            cmd.Parameters.AddWithValue("image",(object?)item.ImageUrl??DBNull.Value);
             cmd.Parameters.AddWithValue("status",autoPublish?"published":"pending");
             cmd.Parameters.AddWithValue("published",autoPublish?DateTime.UtcNow:DBNull.Value);
             total+=await cmd.ExecuteNonQueryAsync(ct);
@@ -391,7 +395,13 @@ sealed class NewsCollector : BackgroundService
                         if(date<now.AddHours(-1)||date>now.AddMinutes(5)) continue;
                         if(string.IsNullOrWhiteSpace(title)||title.Length>500||!Uri.TryCreate(url,UriKind.Absolute,out var link)||link.Scheme!="https") continue;
                         var author=Get("creator")??Get("author");
-                        items.Add(new FeedItem(title,link.ToString(),author,date,null));
+                        var rawExcerpt=Get("description")??Get("summary");
+                        var excerpt=string.IsNullOrWhiteSpace(rawExcerpt)?null:System.Net.WebUtility.HtmlDecode(System.Text.RegularExpressions.Regex.Replace(rawExcerpt, "<[^>]+>", " ")).Trim();
+                        if(excerpt?.Length>1600) excerpt=excerpt[..1600];
+                        var image=entry.Descendants().FirstOrDefault(e=>(e.Name.LocalName is "thumbnail" or "content") && e.Attribute("url")!=null && (e.Name.NamespaceName.Contains("media")||e.Name.LocalName=="thumbnail"))?.Attribute("url")?.Value;
+                        image??=entry.Elements().FirstOrDefault(e=>e.Name.LocalName=="enclosure" && (e.Attribute("type")?.Value.StartsWith("image/")==true))?.Attribute("url")?.Value;
+                        if(!Uri.TryCreate(image,UriKind.Absolute,out var imageUri)||imageUri.Scheme!="https") image=null;
+                        items.Add(new FeedItem(title,link.ToString(),author,date,excerpt,image));
                     }
                     total+=await _store.Import(feed.Id,feed.AutoPublish,items,ct);
                     await _store.MarkChecked(feed.Id,null,ct);
