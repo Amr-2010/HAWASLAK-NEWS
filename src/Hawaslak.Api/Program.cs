@@ -9,6 +9,8 @@ builder.Services.AddHttpClient("rss", c => { c.Timeout = TimeSpan.FromSeconds(15
 builder.Services.AddSingleton<NewsStore>();
 builder.Services.AddHttpClient("ai", c => c.Timeout = TimeSpan.FromSeconds(25));
 builder.Services.AddSingleton<NewsAiService>();
+builder.Services.AddSingleton<NewsAiWorker>();
+builder.Services.AddHostedService(sp=>sp.GetRequiredService<NewsAiWorker>());
 builder.Services.AddSingleton<NewsCollector>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<NewsCollector>());
 var app = builder.Build();
@@ -61,6 +63,11 @@ app.MapPut("/api/admin/sources/{id:long}", async (HttpRequest request, NewsStore
 {
     if (!Authorized(request)) return Results.Unauthorized();
     return await store.EditSource(id,edit,ct) ? Results.Ok(new { saved=true }) : Results.NotFound();
+});
+app.MapPost("/api/admin/ai/prepare-batch", async (HttpRequest request, NewsAiWorker worker, CancellationToken ct) =>
+{
+    if (!Authorized(request)) return Results.Unauthorized();
+    return Results.Ok(await worker.ProcessBatch(10,ct));
 });
 app.MapGet("/api/admin/ai/providers", (HttpRequest request, NewsAiService ai) =>
     Authorized(request) ? Results.Ok(ai.Providers()) : Results.Unauthorized());
@@ -207,6 +214,18 @@ ORDER BY i.original_published_at DESC LIMIT 100", conn);
         await using var r=await cmd.ExecuteReaderAsync(ct);
         var rows=new List<object>();
         while(await r.ReadAsync(ct)) rows.Add(new {id=r.GetInt64(0),title=r.GetString(1),source=r.GetString(2),author=r.IsDBNull(3)?null:r.GetString(3),status=r.GetString(4),url=r.GetString(5),publishedAt=r.GetDateTime(6),images=r.GetInt32(7),country=r.IsDBNull(8)?null:r.GetString(8).Trim(),category=r.GetString(9),titleAr=r.IsDBNull(10)?null:r.GetString(10),subject=r.IsDBNull(11)?null:r.GetString(11),aiProvider=r.IsDBNull(12)?null:r.GetString(12),aiProcessedAt=r.IsDBNull(13)?(DateTime?)null:r.GetDateTime(13)});
+        return rows;
+    }
+    public async Task<List<(long Id,string Title,string Source,string Country)>> GetPendingAiBatch(int max,CancellationToken ct)
+    {
+        var rows=new List<(long,string,string,string)>();
+        await using var conn=await Open(ct);
+        await using var cmd=new NpgsqlCommand(@"SELECT i.id,i.title,f.name,COALESCE(i.country_code,f.country_code) FROM news_items i JOIN news_feeds f ON f.id=i.feed_id
+WHERE i.status='pending' AND i.ai_processed_at IS NULL AND (i.title_ar IS NULL OR i.title_ar='')
+ORDER BY i.imported_at LIMIT @max",conn);
+        cmd.Parameters.AddWithValue("max",Math.Clamp(max,1,10));
+        await using var reader=await cmd.ExecuteReaderAsync(ct);
+        while(await reader.ReadAsync(ct)) rows.Add((reader.GetInt64(0),reader.GetString(1),reader.GetString(2),reader.GetString(3).Trim()));
         return rows;
     }
     public async Task<(string Title,string Source,string Country)?> GetForAi(long id,CancellationToken ct)
