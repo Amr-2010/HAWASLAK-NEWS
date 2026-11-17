@@ -34,6 +34,32 @@ app.MapPost("/api/admin/sources", async (HttpRequest request, NewsStore store, S
     await store.AddSource(input, ct);
     return Results.Ok(new { saved = true });
 });
+app.MapPut("/api/admin/articles/{id:long}", async (HttpRequest request, NewsStore store, long id, ArticleEdit edit, CancellationToken ct) =>
+{
+    if (!Authorized(request)) return Results.Unauthorized();
+    if (string.IsNullOrWhiteSpace(edit.TitleAr) || edit.TitleAr.Length > 500 || edit.Subject?.Length > 20000 ||
+        edit.CountryCode?.Length != 2 || !new[] {"general","politics","economy","sports","technology","health","education","arts"}.Contains(edit.Category))
+        return Results.BadRequest(new { error = "Arabic title, two-letter country and valid category required" });
+    var saved = await store.EditArticle(id,edit,ct);
+    return saved ? Results.Ok(new { saved=true }) : Results.NotFound();
+});
+app.MapPost("/api/admin/articles/{id:long}/status", async (HttpRequest request, NewsStore store, long id, StatusEdit edit, CancellationToken ct) =>
+{
+    if (!Authorized(request)) return Results.Unauthorized();
+    if (!new[] {"pending","published","rejected"}.Contains(edit.Status)) return Results.BadRequest();
+    var saved=await store.ChangeStatus(id,edit.Status,ct);
+    return saved ? Results.Ok(new { saved=true }) : Results.NotFound();
+});
+app.MapDelete("/api/admin/articles/{id:long}", async (HttpRequest request, NewsStore store, long id, CancellationToken ct) =>
+{
+    if (!Authorized(request)) return Results.Unauthorized();
+    return await store.DeleteArticle(id,ct) ? Results.Ok(new { deleted=true }) : Results.NotFound();
+});
+app.MapPut("/api/admin/sources/{id:long}", async (HttpRequest request, NewsStore store, long id, SourceEdit edit, CancellationToken ct) =>
+{
+    if (!Authorized(request)) return Results.Unauthorized();
+    return await store.EditSource(id,edit,ct) ? Results.Ok(new { saved=true }) : Results.NotFound();
+});
 app.MapFallbackToFile("index.html");
 app.Run();
 
@@ -45,6 +71,9 @@ bool Authorized(HttpRequest request)
     return submitted.Length == secret.Length && CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(submitted), Encoding.UTF8.GetBytes(secret));
 }
 record SourceInput(string Name, string CountryCode, string FeedUrl, bool AutoPublishAllowed, string LicenseNotes);
+record ArticleEdit(string TitleAr,string? Subject,string CountryCode,string Category);
+record StatusEdit(string Status);
+record SourceEdit(bool Enabled,bool AutoPublishAllowed);
 record FeedItem(string Title, string Url, string? Author, DateTimeOffset Published, string? Excerpt);
 
 sealed class NewsStore
@@ -104,6 +133,7 @@ CREATE TABLE IF NOT EXISTS news_items (
 ALTER TABLE news_items ADD COLUMN IF NOT EXISTS country_code char(2);
 ALTER TABLE news_items ADD COLUMN IF NOT EXISTS category text NOT NULL DEFAULT 'general';
 UPDATE news_items SET country_code = f.country_code FROM news_feeds f WHERE news_items.feed_id=f.id AND news_items.country_code IS NULL;
+ALTER TABLE news_items ADD COLUMN IF NOT EXISTS title_ar text;
 CREATE INDEX IF NOT EXISTS news_items_country_category ON news_items(country_code,category,original_published_at DESC);
 CREATE INDEX IF NOT EXISTS news_items_recent ON news_items(original_published_at DESC);
 CREATE TABLE IF NOT EXISTS news_images (
@@ -124,7 +154,7 @@ CREATE TABLE IF NOT EXISTS news_images (
     {
         if (!Configured) return Array.Empty<object>();
         await using var conn = await Open(ct);
-        await using var cmd = new NpgsqlCommand(@"SELECT i.id,i.title,i.subject,f.name,i.original_url,i.author_name,i.original_published_at,i.image_count,i.country_code,i.category
+        await using var cmd = new NpgsqlCommand(@"SELECT i.id,COALESCE(NULLIF(i.title_ar,''),i.title),i.subject,f.name,i.original_url,i.author_name,i.original_published_at,i.image_count,i.country_code,i.category
 FROM news_items i JOIN news_feeds f ON f.id=i.feed_id WHERE i.status='published'
 AND (@country IS NULL OR i.country_code=@country)
 AND (@category IS NULL OR i.category=@category)
@@ -153,11 +183,43 @@ ORDER BY i.original_published_at DESC LIMIT 100", conn);
     {
         if (!Configured) return Array.Empty<object>();
         await using var conn=await Open(ct);
-        await using var cmd=new NpgsqlCommand("SELECT i.id,i.title,f.name,i.author_name,i.status,i.original_url,i.original_published_at,i.image_count,i.country_code,i.category FROM news_items i JOIN news_feeds f ON f.id=i.feed_id ORDER BY i.imported_at DESC LIMIT 100",conn);
+        await using var cmd=new NpgsqlCommand("SELECT i.id,i.title,f.name,i.author_name,i.status,i.original_url,i.original_published_at,i.image_count,i.country_code,i.category,i.title_ar,i.subject FROM news_items i JOIN news_feeds f ON f.id=i.feed_id ORDER BY i.imported_at DESC LIMIT 100",conn);
         await using var r=await cmd.ExecuteReaderAsync(ct);
         var rows=new List<object>();
-        while(await r.ReadAsync(ct)) rows.Add(new {id=r.GetInt64(0),title=r.GetString(1),source=r.GetString(2),author=r.IsDBNull(3)?null:r.GetString(3),status=r.GetString(4),url=r.GetString(5),publishedAt=r.GetDateTime(6),images=r.GetInt32(7),country=r.IsDBNull(8)?null:r.GetString(8).Trim(),category=r.GetString(9)});
+        while(await r.ReadAsync(ct)) rows.Add(new {id=r.GetInt64(0),title=r.GetString(1),source=r.GetString(2),author=r.IsDBNull(3)?null:r.GetString(3),status=r.GetString(4),url=r.GetString(5),publishedAt=r.GetDateTime(6),images=r.GetInt32(7),country=r.IsDBNull(8)?null:r.GetString(8).Trim(),category=r.GetString(9),titleAr=r.IsDBNull(10)?null:r.GetString(10),subject=r.IsDBNull(11)?null:r.GetString(11)});
         return rows;
+    }
+    public async Task<bool> EditArticle(long id,ArticleEdit edit,CancellationToken ct)
+    {
+        await using var conn=await Open(ct);
+        await using var cmd=new NpgsqlCommand(@"UPDATE news_items SET title_ar=@title,subject=@body,country_code=@country,category=@category WHERE id=@id",conn);
+        cmd.Parameters.AddWithValue("id",id);
+        cmd.Parameters.AddWithValue("title",edit.TitleAr.Trim());
+        cmd.Parameters.AddWithValue("body",(object?)edit.Subject??DBNull.Value);
+        cmd.Parameters.AddWithValue("country",edit.CountryCode.ToUpperInvariant());
+        cmd.Parameters.AddWithValue("category",edit.Category);
+        return await cmd.ExecuteNonQueryAsync(ct)>0;
+    }
+    public async Task<bool> ChangeStatus(long id,string status,CancellationToken ct)
+    {
+        await using var conn=await Open(ct);
+        await using var cmd=new NpgsqlCommand(@"UPDATE news_items SET status=@status,published_at=CASE WHEN @status='published' THEN COALESCE(published_at,now()) ELSE NULL END WHERE id=@id AND (@status<>'published' OR NULLIF(title_ar,'') IS NOT NULL)",conn);
+        cmd.Parameters.AddWithValue("id",id);cmd.Parameters.AddWithValue("status",status);
+        return await cmd.ExecuteNonQueryAsync(ct)>0;
+    }
+    public async Task<bool> DeleteArticle(long id,CancellationToken ct)
+    {
+        await using var conn=await Open(ct);
+        await using var cmd=new NpgsqlCommand("DELETE FROM news_items WHERE id=@id",conn);
+        cmd.Parameters.AddWithValue("id",id);
+        return await cmd.ExecuteNonQueryAsync(ct)>0;
+    }
+    public async Task<bool> EditSource(long id,SourceEdit edit,CancellationToken ct)
+    {
+        await using var conn=await Open(ct);
+        await using var cmd=new NpgsqlCommand("UPDATE news_feeds SET enabled=@enabled,auto_publish_allowed=@auto WHERE id=@id",conn);
+        cmd.Parameters.AddWithValue("id",id);cmd.Parameters.AddWithValue("enabled",edit.Enabled);cmd.Parameters.AddWithValue("auto",edit.AutoPublishAllowed);
+        return await cmd.ExecuteNonQueryAsync(ct)>0;
     }
     public async Task AddSource(SourceInput input,CancellationToken ct)
     {
