@@ -12,7 +12,7 @@ var app = builder.Build();
 app.UseDefaultFiles();
 app.UseStaticFiles();
 app.MapGet("/health", () => Results.Ok(new { status = "ok", app = "HAWASLAK NEWS" }));
-app.MapGet("/api/news", async (NewsStore store, CancellationToken ct) => Results.Ok(await store.News(ct)));
+app.MapGet("/api/news", async (NewsStore store, string? country, string? category, CancellationToken ct) => Results.Ok(await store.News(country, category, ct)));
 app.MapGet("/api/admin/status", async (HttpRequest request, NewsStore store, CancellationToken ct) =>
     Authorized(request) ? Results.Ok(await store.Status(ct)) : Results.Unauthorized());
 app.MapGet("/api/admin/articles", async (HttpRequest request, NewsStore store, CancellationToken ct) =>
@@ -94,6 +94,10 @@ CREATE TABLE IF NOT EXISTS news_items (
  status text NOT NULL CHECK(status IN ('pending','published','rejected')),
  image_count integer NOT NULL DEFAULT 0 CHECK(image_count BETWEEN 0 AND 10),
  published_at timestamptz);
+ALTER TABLE news_items ADD COLUMN IF NOT EXISTS country_code char(2);
+ALTER TABLE news_items ADD COLUMN IF NOT EXISTS category text NOT NULL DEFAULT 'general';
+UPDATE news_items SET country_code = f.country_code FROM news_feeds f WHERE news_items.feed_id=f.id AND news_items.country_code IS NULL;
+CREATE INDEX IF NOT EXISTS news_items_country_category ON news_items(country_code,category,original_published_at DESC);
 CREATE INDEX IF NOT EXISTS news_items_recent ON news_items(original_published_at DESC);
 CREATE TABLE IF NOT EXISTS news_images (
  id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -109,16 +113,20 @@ CREATE TABLE IF NOT EXISTS news_images (
         }
         return conn;
     }
-    public async Task<object> News(CancellationToken ct)
+    public async Task<object> News(string? country,string? category,CancellationToken ct)
     {
         if (!Configured) return Array.Empty<object>();
         await using var conn = await Open(ct);
-        await using var cmd = new NpgsqlCommand(@"SELECT i.id,i.title,i.subject,f.name,i.original_url,i.author_name,i.original_published_at,i.image_count
+        await using var cmd = new NpgsqlCommand(@"SELECT i.id,i.title,i.subject,f.name,i.original_url,i.author_name,i.original_published_at,i.image_count,i.country_code,i.category
 FROM news_items i JOIN news_feeds f ON f.id=i.feed_id WHERE i.status='published'
+AND (@country IS NULL OR i.country_code=@country)
+AND (@category IS NULL OR i.category=@category)
 ORDER BY i.original_published_at DESC LIMIT 100", conn);
+        cmd.Parameters.AddWithValue("country", (object?)(string.IsNullOrWhiteSpace(country)?null:country.ToUpperInvariant())??DBNull.Value);
+        cmd.Parameters.AddWithValue("category", (object?)(string.IsNullOrWhiteSpace(category)?null:category.ToLowerInvariant())??DBNull.Value);
         await using var r = await cmd.ExecuteReaderAsync(ct);
         var rows = new List<object>();
-        while (await r.ReadAsync(ct)) rows.Add(new { id=r.GetInt64(0), title=r.GetString(1), subject=r.IsDBNull(2)?null:r.GetString(2), source=r.GetString(3), url=r.GetString(4), author=r.IsDBNull(5)?null:r.GetString(5), publishedAt=r.GetDateTime(6), imageCount=r.GetInt32(7) });
+        while (await r.ReadAsync(ct)) rows.Add(new { id=r.GetInt64(0), title=r.GetString(1), subject=r.IsDBNull(2)?null:r.GetString(2), source=r.GetString(3), url=r.GetString(4), author=r.IsDBNull(5)?null:r.GetString(5), publishedAt=r.GetDateTime(6), imageCount=r.GetInt32(7), country=r.IsDBNull(8)?null:r.GetString(8).Trim(),category=r.GetString(9) });
         return rows;
     }
     public async Task<object> Status(CancellationToken ct)
@@ -138,10 +146,10 @@ ORDER BY i.original_published_at DESC LIMIT 100", conn);
     {
         if (!Configured) return Array.Empty<object>();
         await using var conn=await Open(ct);
-        await using var cmd=new NpgsqlCommand("SELECT i.id,i.title,f.name,i.author_name,i.status,i.original_url,i.original_published_at,i.image_count FROM news_items i JOIN news_feeds f ON f.id=i.feed_id ORDER BY i.imported_at DESC LIMIT 100",conn);
+        await using var cmd=new NpgsqlCommand("SELECT i.id,i.title,f.name,i.author_name,i.status,i.original_url,i.original_published_at,i.image_count,i.country_code,i.category FROM news_items i JOIN news_feeds f ON f.id=i.feed_id ORDER BY i.imported_at DESC LIMIT 100",conn);
         await using var r=await cmd.ExecuteReaderAsync(ct);
         var rows=new List<object>();
-        while(await r.ReadAsync(ct)) rows.Add(new {id=r.GetInt64(0),title=r.GetString(1),source=r.GetString(2),author=r.IsDBNull(3)?null:r.GetString(3),status=r.GetString(4),url=r.GetString(5),publishedAt=r.GetDateTime(6),images=r.GetInt32(7)});
+        while(await r.ReadAsync(ct)) rows.Add(new {id=r.GetInt64(0),title=r.GetString(1),source=r.GetString(2),author=r.IsDBNull(3)?null:r.GetString(3),status=r.GetString(4),url=r.GetString(5),publishedAt=r.GetDateTime(6),images=r.GetInt32(7),country=r.IsDBNull(8)?null:r.GetString(8).Trim(),category=r.GetString(9)});
         return rows;
     }
     public async Task AddSource(SourceInput input,CancellationToken ct)
@@ -172,8 +180,8 @@ VALUES(@n,@c,@u,@a,@l) ON CONFLICT(feed_url) DO UPDATE SET name=EXCLUDED.name,co
         var total=0;
         foreach(var item in items)
         {
-            await using var cmd=new NpgsqlCommand(@"INSERT INTO news_items(feed_id,title,subject,original_url,author_name,original_published_at,status,published_at)
-VALUES(@f,@t,@s,@u,@a,@p,@status,@published) ON CONFLICT(original_url) DO NOTHING",conn);
+            await using var cmd=new NpgsqlCommand(@"INSERT INTO news_items(feed_id,title,subject,original_url,author_name,original_published_at,status,published_at,country_code,category)
+VALUES(@f,@t,@s,@u,@a,@p,@status,@published,(SELECT country_code FROM news_feeds WHERE id=@f),@category) ON CONFLICT(original_url) DO NOTHING",conn);
             cmd.Parameters.AddWithValue("f",feedId);
             cmd.Parameters.AddWithValue("t",item.Title);
             // Do not copy full article bodies. Excerpts require publisher permission and are not imported by default.
@@ -181,11 +189,24 @@ VALUES(@f,@t,@s,@u,@a,@p,@status,@published) ON CONFLICT(original_url) DO NOTHIN
             cmd.Parameters.AddWithValue("u",item.Url);
             cmd.Parameters.AddWithValue("a",(object?)item.Author??DBNull.Value);
             cmd.Parameters.AddWithValue("p",item.Published.UtcDateTime);
+            cmd.Parameters.AddWithValue("category", Classify(item.Title));
             cmd.Parameters.AddWithValue("status",autoPublish?"published":"pending");
             cmd.Parameters.AddWithValue("published",autoPublish?DateTime.UtcNow:DBNull.Value);
             total+=await cmd.ExecuteNonQueryAsync(ct);
         }
         return total;
+    }
+    private static string Classify(string title)
+    {
+        var t=title.ToLowerInvariant();
+        if (new[]{"football","soccer","match","league","رياضة","مباراة","الدوري","كرة القدم"}.Any(t.Contains)) return "sports";
+        if (new[]{"economy","market","stocks","business","اقتصاد","بورصة","أسعار","استثمار"}.Any(t.Contains)) return "economy";
+        if (new[]{"technology","ai ","software","تكنولوجيا","تقنية","ذكاء اصطناعي"}.Any(t.Contains)) return "technology";
+        if (new[]{"health","medical","hospital","صحة","طب","مستشفى"}.Any(t.Contains)) return "health";
+        if (new[]{"education","school","university","تعليم","جامعة","مدرسة"}.Any(t.Contains)) return "education";
+        if (new[]{"election","president","government","parliament","انتخابات","رئيس","حكومة","برلمان"}.Any(t.Contains)) return "politics";
+        if (new[]{"cinema","film","music","سينما","فيلم","موسيقى","فن"}.Any(t.Contains)) return "arts";
+        return "general";
     }
     public async Task MarkChecked(long id,string? error,CancellationToken ct)
     {
