@@ -34,7 +34,7 @@ sealed class NewsAiWorker : BackgroundService
                 _used++;
                 try
                 {
-                    var draft=await _ai.Generate(new AiRequest(item.Title,null,item.Source,item.Country),ct);
+                    var draft=await _ai.Generate(new AiRequest(item.Title,item.Context,item.Source,item.Country),ct);
                     await _store.SaveAiDraft(item.Id,draft,ct);
                     completed++;
                 }
