@@ -86,6 +86,12 @@ CREATE TABLE IF NOT EXISTS news_feeds (
  name text NOT NULL, country_code char(2) NOT NULL, feed_url text NOT NULL UNIQUE,
  enabled boolean NOT NULL DEFAULT true, auto_publish_allowed boolean NOT NULL DEFAULT false,
  license_notes text NOT NULL DEFAULT '', last_checked timestamptz, last_error text);
+INSERT INTO news_feeds(name,country_code,feed_url,enabled,auto_publish_allowed,license_notes)
+VALUES
+ ('Al Jazeera English','QA','https://www.aljazeera.com/xml/rss/all.xml',true,false,'RSS discovery only; review rights before publication'),
+ ('DW English','DE','https://rss.dw.com/rdf/rss-en-all',true,false,'RSS discovery only; review rights before publication'),
+ ('The Guardian World','GB','https://www.theguardian.com/world/rss',true,false,'RSS discovery only; review rights before publication')
+ON CONFLICT(feed_url) DO NOTHING;
 CREATE TABLE IF NOT EXISTS news_items (
  id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
  feed_id bigint NOT NULL REFERENCES news_feeds(id),
