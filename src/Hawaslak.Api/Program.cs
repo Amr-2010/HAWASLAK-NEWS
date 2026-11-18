@@ -89,6 +89,13 @@ app.MapPost("/api/admin/articles/{id:long}/ai-prepare", async (HttpRequest reque
     }
     catch (InvalidOperationException e) { return Results.Json(new { error=e.Message },statusCode:503); }
 });
+app.MapGet("/api/site-settings", async (NewsStore store,CancellationToken ct)=>Results.Ok(await store.SiteSettings(ct)));
+app.MapPut("/api/admin/site-settings", async (HttpRequest request,NewsStore store,SiteSettingsInput input,CancellationToken ct)=>{
+ if(!Authorized(request))return Results.Unauthorized();
+ if(!string.IsNullOrWhiteSpace(input.LogoUrl)&&(!Uri.TryCreate(input.LogoUrl,UriKind.Absolute,out var u)||u.Scheme!="https"||input.LogoUrl.Length>1000))return Results.BadRequest(new {error="Logo must be a valid HTTPS image URL"});
+ if(input.Categories is null||input.Categories.Count>24||input.Categories.Any(x=>string.IsNullOrWhiteSpace(x.Id)||!System.Text.RegularExpressions.Regex.IsMatch(x.Id,@"^[a-z][a-z0-9_-]{1,30}$")||string.IsNullOrWhiteSpace(x.Ar)||x.Ar.Length>60||string.IsNullOrWhiteSpace(x.En)||x.En.Length>60)||input.Categories.Select(x=>x.Id).Distinct().Count()!=input.Categories.Count)return Results.BadRequest(new {error="Invalid categories"});
+ await store.SaveSiteSettings(input,ct);return Results.Ok(new {saved=true});
+});
 app.MapGet("/api/features", async (NewsStore store, CancellationToken ct) => Results.Ok(await store.Features(false,ct)));
 app.MapGet("/api/admin/features", async (HttpRequest request, NewsStore store, CancellationToken ct) =>
     Authorized(request) ? Results.Ok(await store.Features(true,ct)) : Results.Unauthorized());
@@ -114,6 +121,8 @@ bool Authorized(HttpRequest request)
     var submitted = request.Headers["X-Admin-Password"].ToString();
     return submitted.Length == secret.Length && CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(submitted), Encoding.UTF8.GetBytes(secret));
 }
+record SiteCategory(string Id,string Ar,string En,string Icon);
+record SiteSettingsInput(string? LogoUrl,List<SiteCategory> Categories);
 record FeatureInput(long? Id,string Kind,string Title,string Body,string? Excerpt,string? CoverUrl,bool Published);
 record SourceInput(string Name, string CountryCode, string FeedUrl, bool AutoPublishAllowed, string LicenseNotes);
 record ArticleEdit(string TitleAr,string? Subject,string CountryCode,string Category);
@@ -236,6 +245,7 @@ INSERT INTO news_feeds(name,country_code,feed_url,enabled,auto_publish_allowed,l
 ('Reuters via Google News','US','https://news.google.com/rss/search?q=when:24h+site:reuters.com&ceid=US:en&hl=en-US&gl=US',true,false,'Google News discovery, NOT a Reuters licensed feed; link only'),
 ('AP via Google News','US','https://news.google.com/rss/search?q=when:24h+site:apnews.com&hl=en-US&gl=US&ceid=US:en',true,false,'Google News discovery, NOT an AP licensed feed; link only')
 ON CONFLICT(feed_url) DO NOTHING;
+CREATE TABLE IF NOT EXISTS site_settings (key text PRIMARY KEY,value text NOT NULL);
 CREATE TABLE IF NOT EXISTS editorial_features (
  id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
  kind text NOT NULL CHECK(kind IN ('article','special_file','news')),
@@ -258,6 +268,33 @@ CREATE TABLE IF NOT EXISTS news_images (
             finally { _setup.Release(); }
         }
         return conn;
+    }
+    public async Task<SiteSettingsInput> SiteSettings(CancellationToken ct)
+    {
+        var defaults=new List<SiteCategory>{new("general","الرئيسية","Home","🇪🇬"),new("politics","سياسة","Politics","🌐"),new("economy","اقتصاد","Economy","📊"),new("sports","رياضة","Sports","⚽"),new("technology","تكنولوجيا","Technology","💻"),new("health","صحة","Health","⚕️"),new("education","تعليم","Education","🎓"),new("arts","فن","Arts","🎭")};
+        if(!Configured)return new SiteSettingsInput(null,defaults);
+        await using var conn=await Open(ct);
+        await using var cmd=new NpgsqlCommand("SELECT key,value FROM site_settings WHERE key IN ('logo_url','categories')",conn);
+        await using var reader=await cmd.ExecuteReaderAsync(ct);
+        string? logo=null;List<SiteCategory>? categories=null;
+        while(await reader.ReadAsync(ct))
+        {
+            if(reader.GetString(0)=="logo_url")logo=reader.GetString(1);
+            else try{categories=System.Text.Json.JsonSerializer.Deserialize<List<SiteCategory>>(reader.GetString(1));}catch(System.Text.Json.JsonException){}
+        }
+        return new SiteSettingsInput(logo,categories is {Count:>0}?categories:defaults);
+    }
+    public async Task SaveSiteSettings(SiteSettingsInput input,CancellationToken ct)
+    {
+        await using var conn=await Open(ct);
+        await using var tx=await conn.BeginTransactionAsync(ct);
+        foreach(var item in new[]{new KeyValuePair<string,string>("logo_url",input.LogoUrl??""),new KeyValuePair<string,string>("categories",System.Text.Json.JsonSerializer.Serialize(input.Categories))})
+        {
+            await using var cmd=new NpgsqlCommand("INSERT INTO site_settings(key,value) VALUES(@k,@v) ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value",conn,tx);
+            cmd.Parameters.AddWithValue("k",item.Key);cmd.Parameters.AddWithValue("v",item.Value);
+            await cmd.ExecuteNonQueryAsync(ct);
+        }
+        await tx.CommitAsync(ct);
     }
     public async Task<object> Features(bool includeDrafts,CancellationToken ct)
     {
