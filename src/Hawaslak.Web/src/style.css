@@ -62,3 +62,27 @@
 .news-main .news-grid .story-body h2{font-size:19px}
 @media(max-width:900px){.lead-layout{grid-template-columns:1fr}.lead-side{grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:auto}.news-main .news-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:600px){.masthead{min-height:90px;flex-direction:column;align-items:stretch;padding:18px}.masthead-search{max-width:none}.brand{text-align:center}.category-nav button{padding:13px 12px}.lead-side{grid-template-columns:1fr}.news-main .news-grid{grid-template-columns:1fr}.lead-story .story-surface{min-height:190px}.section-heading span{display:none}}
+
+/* Hawaslak original visual identity: navy, coral and cyan with twin regional news ribbons */
+.masthead{background:linear-gradient(110deg,#f8fbff 0%,#eaf5f9 100%);border-bottom:1px solid #e4ecf1}
+.brand{display:flex;align-items:center;gap:9px;flex-wrap:wrap;color:#0d3550;letter-spacing:-.8px}
+.brand-symbol{display:inline-flex!important;align-items:center;justify-content:center;width:43px;height:43px;background:#0b6580!important;color:#fff!important;border-radius:15px 15px 15px 4px;font-size:28px!important;padding:0!important;line-height:1}
+.brand>span:not(.brand-symbol){background:#ed5b4c;color:white;border-radius:6px;font-size:.46em;padding:6px 10px}
+.brand small{display:block;flex-basis:100%;font-size:12px;letter-spacing:0;color:#59798a;font-weight:600;margin-top:-7px}
+.category-nav button.active,.category-nav button:hover{border-bottom-color:#ed5b4c;color:#0c657f}
+.regional-strips{display:flex;flex-direction:column;gap:10px;margin-bottom:27px}
+.regional-strip{display:grid;grid-template-columns:145px minmax(0,1fr);min-height:57px;border-radius:12px;overflow:hidden;border:1px solid #dceaf0;background:#fff;box-shadow:0 2px 9px #102a3d0b}
+.regional-label{display:flex;align-items:center;justify-content:center;gap:8px;background:#0d5672;color:#fff;font-size:15px;font-weight:800;padding:10px}
+.regional-strip.world .regional-label{background:#183d63}
+.regional-dot{width:7px;height:7px;border-radius:50%;background:#ffb49c;box-shadow:0 0 0 3px #ffffff26}
+.regional-track{display:flex;gap:0;overflow-x:auto;scrollbar-width:thin;align-items:stretch;scroll-snap-type:x proximity}
+.regional-track a{flex:0 0 min(330px,70vw);min-width:0;padding:10px 17px;text-decoration:none;color:#143951;display:flex;flex-direction:column;justify-content:center;gap:4px;border-inline-end:1px solid #e9eff4;scroll-snap-align:start}
+.regional-track a:hover{background:#f0f9fc;color:#c4493e}
+.regional-track a span{font-size:13px;font-weight:750;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.regional-track a small{font-size:11px;color:#8194a0}
+.regional-empty{align-self:center;color:#7a8e9c;font-size:13px;padding:10px 18px}
+.story-category{background:#ed5b4c}
+.story-surface{background:linear-gradient(125deg,#073c59,#127c91 62%,#76c6c9)}
+.story-body h2 a:hover{color:#c94e42}
+.story-footer a{color:#096783}
+@media(max-width:600px){.regional-strip{grid-template-columns:105px minmax(0,1fr)}.regional-label{font-size:12px;padding:8px}.regional-track a{flex-basis:245px}.brand{justify-content:center}.brand small{text-align:center}}
