@@ -538,6 +538,13 @@ INSERT INTO news_feeds(name,country_code,feed_url,enabled,auto_publish_allowed,l
 ('Zawia3 Egypt Environment','EG','https://zawia3.com/en/category/ُenv/feed/',false,false,'Publisher-listed RSS; Unicode path requires runtime verification'),
 ('Al Shorouk Egypt','EG','https://www.shorouknews.com/egypt/rss',true,false,'RSS directory recently reported working; editorial review required')
 ON CONFLICT(feed_url) DO NOTHING;
+-- Egyptian publisher RSS endpoints independently surfaced in November 2026.
+-- Publisher links are still checked at runtime; never assume all hosts permit Render access.
+INSERT INTO news_feeds(name,country_code,feed_url,enabled,auto_publish_allowed,license_notes) VALUES
+('Youm7 Main RSS','EG','https://www.youm7.com/rss/rss',true,false,'Official publisher RSS listing; editorial approval required'),
+('Youm7 Culture & Literature','EG','https://www.youm7.com/rss/SectionRss?SectionID=94',true,false,'Official publisher culture RSS; editorial approval required'),
+('Al Masry Al Youm Main RSS','EG','https://www.almasryalyoum.com/rss/rssfeeds',true,false,'Third-party RSS reader reports working; editorial approval required')
+ON CONFLICT(feed_url) DO NOTHING;
 CREATE TABLE IF NOT EXISTS editorial_features (
  id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
  kind text NOT NULL CHECK(kind IN ('article','special_file','news')),
@@ -807,7 +814,7 @@ VALUES(@n,@c,@u,@a,@l) ON CONFLICT(feed_url) DO UPDATE SET name=EXCLUDED.name,co
         var url=(await cmd.ExecuteScalarAsync(ct))?.ToString()??"";
         if(url.Contains("/category/politics-en/",StringComparison.OrdinalIgnoreCase))return "politics";
         if(url.Contains("/category/economics-en/",StringComparison.OrdinalIgnoreCase))return "economy";
-        if(url.Contains("/category/culture/",StringComparison.OrdinalIgnoreCase))return "literature";
+        if(url.Contains("/category/culture/",StringComparison.OrdinalIgnoreCase)||url.Contains("SectionID=94",StringComparison.OrdinalIgnoreCase))return "literature";
         if(url.Contains("/category/investigations-en/",StringComparison.OrdinalIgnoreCase))return "crime";
         return null;
     }
