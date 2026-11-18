@@ -92,3 +92,12 @@
 .country-filter select{min-width:180px;width:auto;padding:10px 14px;border:1px solid #cbdbe4;border-radius:8px;background:#f7fbfd;color:#173c53;font-weight:700}
 .country-filter span{color:#778b99;font-size:12px}
 @media(max-width:600px){.country-filter select{flex:1;min-width:130px}.country-filter span{flex-basis:100%}}
+
+/* Seamless continuous regional headlines ticker */
+.regional-track{overflow:hidden;scroll-snap-type:none;direction:ltr;align-items:center}
+.regional-marquee{display:flex;width:max-content;min-width:100%;animation:regional-news-scroll 70s linear infinite;will-change:transform}
+.regional-marquee-group{display:flex;flex:0 0 auto;align-items:stretch}
+.regional-marquee-group a{display:flex;flex:0 0 300px;direction:rtl;scroll-snap-align:none;align-items:flex-start;justify-content:center;box-sizing:border-box}
+.regional-strip:hover .regional-marquee,.regional-strip:focus-within .regional-marquee{animation-play-state:paused}
+@keyframes regional-news-scroll{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+@media(prefers-reduced-motion:reduce){.regional-marquee{animation:none}.regional-track{overflow-x:auto}}
