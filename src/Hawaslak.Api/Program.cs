@@ -66,7 +66,7 @@ app.MapPut("/api/admin/articles/{id:long}", async (HttpRequest request, NewsStor
 {
     if (!Authorized(request)) return Results.Unauthorized();
     if (string.IsNullOrWhiteSpace(edit.TitleAr) || edit.TitleAr.Length > 500 || edit.Subject?.Length > 20000 ||
-        edit.CountryCode?.Length != 2 || !new[] {"general","politics","economy","sports","technology","health","education","arts","literature"}.Contains(edit.Category))
+        edit.CountryCode?.Length != 2 || !new[] {"general","politics","economy","sports","technology","health","education","arts","literature","crime"}.Contains(edit.Category))
         return Results.BadRequest(new { error = "Arabic title, two-letter country and valid category required" });
     var saved = await store.EditArticle(id,edit,ct);
     return saved ? Results.Ok(new { saved=true }) : Results.NotFound();
@@ -323,7 +323,7 @@ CREATE TABLE IF NOT EXISTS news_images (
     }
     public async Task<SiteSettingsInput> SiteSettings(CancellationToken ct)
     {
-        var defaults=new List<SiteCategory>{new("general","الرئيسية","Home","🇪🇬"),new("politics","سياسة","Politics","🌐"),new("economy","اقتصاد","Economy","📊"),new("sports","رياضة","Sports","⚽"),new("technology","تكنولوجيا","Technology","💻"),new("health","صحة","Health","⚕️"),new("education","تعليم","Education","🎓"),new("arts","فن","Arts","🎭"),new("literature","أدب","Literature","📚")};
+        var defaults=new List<SiteCategory>{new("general","الرئيسية","Home","🇪🇬"),new("politics","سياسة","Politics","🌐"),new("economy","اقتصاد","Economy","📊"),new("sports","رياضة","Sports","⚽"),new("technology","تكنولوجيا","Technology","💻"),new("health","صحة","Health","⚕️"),new("education","تعليم","Education","🎓"),new("arts","فن","Arts","🎭"),new("literature","أدب","Literature","📚"),new("crime","الجريمة والعقاب","Crime & Justice","⚖️")};
         if(!Configured)return new SiteSettingsInput(null,defaults);
         await using var conn=await Open(ct);
         await using var cmd=new NpgsqlCommand("SELECT key,value FROM site_settings WHERE key IN ('logo_url','categories')",conn);
@@ -335,6 +335,7 @@ CREATE TABLE IF NOT EXISTS news_images (
             else try{categories=System.Text.Json.JsonSerializer.Deserialize<List<SiteCategory>>(reader.GetString(1));}catch(System.Text.Json.JsonException){}
         }
         if(categories is {Count:>0}&&!categories.Any(x=>x.Id=="literature"))categories.Add(new("literature","أدب","Literature","📚"));
+        if(categories is {Count:>0}&&!categories.Any(x=>x.Id=="crime"))categories.Add(new("crime","الجريمة والعقاب","Crime & Justice","⚖️"));
         return new SiteSettingsInput(logo,categories is {Count:>0}?categories:defaults);
     }
     public async Task SaveSiteSettings(SiteSettingsInput input,CancellationToken ct)
@@ -585,6 +586,7 @@ VALUES(@f,@t,@titleAr,@s,@u,@a,@p,@status,@published,(SELECT country_code FROM n
     private static string Classify(string title)
     {
         var t=title.ToLowerInvariant();
+        if (new[]{"جريمة","جرائم","قتل","جنايات","النيابة العامة","المحكمة الجنائية","محكمة الجنايات","حبس المتهم","القبض على","سرقة","مخدرات","حكم قضائي","crime","criminal","murder","arrested","prosecution","sentenced","court verdict"}.Any(t.Contains)) return "crime";
         if (new[]{"رواية","روايات","شعر","شاعر","أدب","أديب","كتاب جديد","إصدار أدبي","قصة قصيرة","قصص قصيرة","literature","novel","poetry","poet","literary","book fair"}.Any(t.Contains)) return "literature";
         if (new[]{"football","soccer","match","league","رياضة","مباراة","الدوري","كرة القدم"}.Any(t.Contains)) return "sports";
         if (new[]{"economy","market","stocks","business","اقتصاد","بورصة","أسعار","استثمار"}.Any(t.Contains)) return "economy";
