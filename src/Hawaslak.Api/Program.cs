@@ -555,6 +555,16 @@ INSERT INTO news_feeds(name,country_code,feed_url,enabled,auto_publish_allowed,l
 ('Youm7 Technology','EG','https://www.youm7.com/rss/SectionRss?SectionID=328',true,false,'Current entries confirmed by feed reader and search; editorial approval required'),
 ('Al Shorouk Egypt News','EG','https://www.shorouknews.com/egypt/rss',true,false,'Publisher lists section RSS; third-party fetch returns RSS content type; editorial approval required')
 ON CONFLICT(feed_url) DO NOTHING;
+-- Sports feeds: publisher-listed Egyptian sections and externally verified global RSS (November 2026).
+INSERT INTO news_feeds(name,country_code,feed_url,enabled,auto_publish_allowed,license_notes) VALUES
+('Btolat RSS Directory','EG','https://www.btolat.com/rss',false,false,'Publisher RSS directory; verify individual feed URLs before use; editorial review required'),
+('BBC Sport World','GB','https://feeds.bbci.co.uk/sport/rss.xml',true,false,'Sports RSS checked October 2026; source copyright retained'),
+('BBC Football World','GB','https://feeds.bbci.co.uk/sport/football/rss.xml',true,false,'Football RSS checked October 2026; source copyright retained'),
+('Sky Sports World','GB','https://www.skysports.com/rss/12040',true,false,'Sports RSS checked October 2026; source copyright retained'),
+('Sky Sports Football','GB','https://www.skysports.com/rss/11095',true,false,'Football RSS checked October 2026; source copyright retained'),
+('ESPN Soccer','US','https://www.espn.com/espn/rss/soccer/news',true,false,'May return bot-check HTTP 202 from Render; editorial review required'),
+('ESPN NBA','US','https://www.espn.com/espn/rss/nba/news',true,false,'May return bot-check HTTP 202 from Render; editorial review required')
+ON CONFLICT(feed_url) DO NOTHING;
 CREATE TABLE IF NOT EXISTS editorial_features (
  id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
  kind text NOT NULL CHECK(kind IN ('article','special_file','news')),
