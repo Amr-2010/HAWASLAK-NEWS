@@ -528,6 +528,16 @@ INSERT INTO news_feeds(name,country_code,feed_url,enabled,auto_publish_allowed,l
 ('Yemen Times','YE','https://yementimes.com/feed',false,false,'UNVERIFIED feed-path guess; enable only after confirming publisher RSS endpoint and rights'),
 ('Lusaka Times','ZM','https://lusakatimes.com/feed',false,false,'UNVERIFIED feed-path guess; enable only after confirming publisher RSS endpoint and rights')
 ON CONFLICT(feed_url) DO NOTHING;
+-- Egyptian section feeds published by Zawia3; keep editorial approval and test reachability from Render.
+INSERT INTO news_feeds(name,country_code,feed_url,enabled,auto_publish_allowed,license_notes) VALUES
+('Zawia3 Egypt Politics','EG','https://zawia3.com/en/category/politics-en/feed/',true,false,'Publisher-listed RSS; editorial review required'),
+('Zawia3 Egypt Economy','EG','https://zawia3.com/en/category/economics-en/feed/',true,false,'Publisher-listed RSS; editorial review required'),
+('Zawia3 Egypt Culture','EG','https://zawia3.com/en/category/culture/feed/',true,false,'Publisher-listed RSS; editorial review required'),
+('Zawia3 Egypt Investigations','EG','https://zawia3.com/en/category/investigations-en/feed/',true,false,'Publisher-listed RSS; editorial review required'),
+('Zawia3 Egypt Society','EG','https://zawia3.com/en/category/society-en/feed/',true,false,'Publisher-listed RSS; editorial review required'),
+('Zawia3 Egypt Environment','EG','https://zawia3.com/en/category/ُenv/feed/',false,false,'Publisher-listed RSS; Unicode path requires runtime verification'),
+('Al Shorouk Egypt','EG','https://www.shorouknews.com/egypt/rss',true,false,'RSS directory recently reported working; editorial review required')
+ON CONFLICT(feed_url) DO NOTHING;
 CREATE TABLE IF NOT EXISTS editorial_features (
  id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
  kind text NOT NULL CHECK(kind IN ('article','special_file','news')),
@@ -790,6 +800,17 @@ VALUES(@n,@c,@u,@a,@l) ON CONFLICT(feed_url) DO UPDATE SET name=EXCLUDED.name,co
         while(await r.ReadAsync(ct)) rows.Add((r.GetInt64(0),r.GetString(1),r.GetBoolean(2)));
         return rows;
     }
+    private static async Task<string?> FeedCategory(long feedId,NpgsqlConnection conn,CancellationToken ct)
+    {
+        await using var cmd=new NpgsqlCommand("SELECT feed_url FROM news_feeds WHERE id=@id",conn);
+        cmd.Parameters.AddWithValue("id",feedId);
+        var url=(await cmd.ExecuteScalarAsync(ct))?.ToString()??"";
+        if(url.Contains("/category/politics-en/",StringComparison.OrdinalIgnoreCase))return "politics";
+        if(url.Contains("/category/economics-en/",StringComparison.OrdinalIgnoreCase))return "economy";
+        if(url.Contains("/category/culture/",StringComparison.OrdinalIgnoreCase))return "literature";
+        if(url.Contains("/category/investigations-en/",StringComparison.OrdinalIgnoreCase))return "crime";
+        return null;
+    }
     public async Task<int> Import(long feedId,bool autoPublish,IEnumerable<FeedItem> items,CancellationToken ct)
     {
         await using var conn=await Open(ct);
@@ -806,7 +827,9 @@ VALUES(@f,@t,@titleAr,@s,@u,@a,@p,@status,@published,(SELECT country_code FROM n
             cmd.Parameters.AddWithValue("u",item.Url);
             cmd.Parameters.AddWithValue("a",(object?)item.Author??DBNull.Value);
             cmd.Parameters.AddWithValue("p",item.Published.UtcDateTime);
-            cmd.Parameters.AddWithValue("category", Classify(item.Title));
+            // Prefer a dedicated publisher section over title-keyword guessing.
+            var feedCategory=await FeedCategory(feedId,conn,ct);
+            cmd.Parameters.AddWithValue("category", feedCategory??Classify(item.Title));
             cmd.Parameters.AddWithValue("excerpt",(object?)item.Excerpt??DBNull.Value);
             cmd.Parameters.AddWithValue("image",(object?)item.ImageUrl??DBNull.Value);
             cmd.Parameters.AddWithValue("status",autoPublish?"published":"pending");
