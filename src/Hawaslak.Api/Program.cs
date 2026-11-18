@@ -89,6 +89,21 @@ app.MapPost("/api/admin/articles/{id:long}/ai-prepare", async (HttpRequest reque
     }
     catch (InvalidOperationException e) { return Results.Json(new { error=e.Message },statusCode:503); }
 });
+app.MapGet("/api/features", async (NewsStore store, CancellationToken ct) => Results.Ok(await store.Features(false,ct)));
+app.MapGet("/api/admin/features", async (HttpRequest request, NewsStore store, CancellationToken ct) =>
+    Authorized(request) ? Results.Ok(await store.Features(true,ct)) : Results.Unauthorized());
+app.MapPost("/api/admin/features", async (HttpRequest request, NewsStore store, FeatureInput input, CancellationToken ct) =>
+{
+    if (!Authorized(request)) return Results.Unauthorized();
+    if (string.IsNullOrWhiteSpace(input.Title) || string.IsNullOrWhiteSpace(input.Body) || input.Title.Length>240 || input.Body.Length>40000 || !new[]{"article","special_file"}.Contains(input.Kind))
+        return Results.BadRequest(new {error="Valid title, body and kind are required"});
+    return Results.Ok(new {id=await store.SaveFeature(input,ct)});
+});
+app.MapDelete("/api/admin/features/{id:long}", async (HttpRequest request, NewsStore store, long id, CancellationToken ct) =>
+{
+    if (!Authorized(request)) return Results.Unauthorized();
+    return await store.DeleteFeature(id,ct) ? Results.Ok(new {deleted=true}) : Results.NotFound();
+});
 app.MapFallbackToFile("index.html");
 app.Run();
 
@@ -99,6 +114,7 @@ bool Authorized(HttpRequest request)
     var submitted = request.Headers["X-Admin-Password"].ToString();
     return submitted.Length == secret.Length && CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(submitted), Encoding.UTF8.GetBytes(secret));
 }
+record FeatureInput(long? Id,string Kind,string Title,string Body,string? Excerpt,string? CoverUrl,bool Published);
 record SourceInput(string Name, string CountryCode, string FeedUrl, bool AutoPublishAllowed, string LicenseNotes);
 record ArticleEdit(string TitleAr,string? Subject,string CountryCode,string Category);
 record StatusEdit(string Status);
@@ -202,6 +218,13 @@ ALTER TABLE news_items ADD COLUMN IF NOT EXISTS ai_model text;
 ALTER TABLE news_items ADD COLUMN IF NOT EXISTS ai_processed_at timestamptz;
 CREATE INDEX IF NOT EXISTS news_items_country_category ON news_items(country_code,category,original_published_at DESC);
 CREATE INDEX IF NOT EXISTS news_items_recent ON news_items(original_published_at DESC);
+CREATE TABLE IF NOT EXISTS editorial_features (
+ id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+ kind text NOT NULL CHECK(kind IN ('article','special_file')),
+ title text NOT NULL,body text NOT NULL,excerpt text,cover_url text,
+ published boolean NOT NULL DEFAULT false,created_at timestamptz NOT NULL DEFAULT now(),
+ updated_at timestamptz NOT NULL DEFAULT now()
+);
 CREATE TABLE IF NOT EXISTS news_images (
  id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
  item_id bigint NOT NULL REFERENCES news_items(id) ON DELETE CASCADE,
@@ -215,6 +238,45 @@ CREATE TABLE IF NOT EXISTS news_images (
             finally { _setup.Release(); }
         }
         return conn;
+    }
+    public async Task<object> Features(bool includeDrafts,CancellationToken ct)
+    {
+        if (!Configured) return Array.Empty<object>();
+        await using var conn=await Open(ct);
+        await using var cmd=new NpgsqlCommand(@"SELECT id,kind,title,body,excerpt,cover_url,published,created_at FROM editorial_features WHERE (@drafts OR published=true) ORDER BY created_at DESC LIMIT 100",conn);
+        cmd.Parameters.AddWithValue("drafts",includeDrafts);
+        await using var r=await cmd.ExecuteReaderAsync(ct);
+        var rows=new List<object>();
+        while(await r.ReadAsync(ct)) rows.Add(new {id=r.GetInt64(0),kind=r.GetString(1),title=r.GetString(2),body=r.GetString(3),excerpt=r.IsDBNull(4)?null:r.GetString(4),coverUrl=r.IsDBNull(5)?null:r.GetString(5),published=r.GetBoolean(6),createdAt=r.GetDateTime(7)});
+        return rows;
+    }
+    public async Task<long> SaveFeature(FeatureInput input,CancellationToken ct)
+    {
+        await using var conn=await Open(ct);
+        await using var cmd=new NpgsqlCommand(@"INSERT INTO editorial_features(kind,title,body,excerpt,cover_url,published)
+SELECT @kind,@title,@body,@excerpt,@cover,@published WHERE @id=0
+ON CONFLICT DO NOTHING",conn);
+        cmd.Parameters.AddWithValue("id",input.Id.GetValueOrDefault());
+        cmd.Parameters.AddWithValue("kind",input.Kind);
+        cmd.Parameters.AddWithValue("title",input.Title.Trim());
+        cmd.Parameters.AddWithValue("body",input.Body.Trim());
+        cmd.Parameters.AddWithValue("excerpt",(object?)input.Excerpt??DBNull.Value);
+        cmd.Parameters.AddWithValue("cover",(object?)input.CoverUrl??DBNull.Value);
+        cmd.Parameters.AddWithValue("published",input.Published);
+        if(input.Id.GetValueOrDefault()>0)
+        {
+            cmd.CommandText=@"UPDATE editorial_features SET kind=@kind,title=@title,body=@body,excerpt=@excerpt,cover_url=@cover,published=@published,updated_at=now() WHERE id=@id RETURNING id";
+        }
+        else cmd.CommandText=@"INSERT INTO editorial_features(kind,title,body,excerpt,cover_url,published) VALUES(@kind,@title,@body,@excerpt,@cover,@published) RETURNING id";
+        var result=await cmd.ExecuteScalarAsync(ct);
+        return result is long id?id:throw new InvalidOperationException("Feature not found");
+    }
+    public async Task<bool> DeleteFeature(long id,CancellationToken ct)
+    {
+        await using var conn=await Open(ct);
+        await using var cmd=new NpgsqlCommand("DELETE FROM editorial_features WHERE id=@id",conn);
+        cmd.Parameters.AddWithValue("id",id);
+        return await cmd.ExecuteNonQueryAsync(ct)>0;
     }
     public async Task<object> News(string? country,string? category,CancellationToken ct)
     {
