@@ -370,3 +370,11 @@ body{padding-bottom:78px!important}
 .regional-strip .ticker-headline>small{display:none!important}
 .regional-strip .regional-marquee-group{width:max-content!important;flex:0 0 auto!important}
 @media(max-width:650px){.regional-strip .ticker-headline{max-width:none!important}.regional-strip .ticker-headline>span{max-width:none!important}}
+
+/* Configurable homepage banner */
+.custom-main-banner{margin:12px auto 18px;max-width:1440px;min-height:175px;padding:26px 32px;border-radius:15px;background-color:#0c3973;background-size:cover;background-position:center;color:#fff;display:flex;align-items:center;box-sizing:border-box}
+.custom-main-banner h1{font-size:clamp(1.35rem,3vw,2.2rem);margin:0 0 10px;color:#fff}
+.custom-main-banner p{margin:0 0 12px;color:#e8f1ff;line-height:1.7}
+.custom-main-banner a{display:inline-block;background:#fff;color:#143f7c;padding:9px 18px;border-radius:8px;font-weight:700;text-decoration:none}
+.site-settings-form textarea{min-height:80px;width:100%;box-sizing:border-box}
+@media(max-width:650px){.custom-main-banner{margin:10px 12px 14px;min-height:130px;padding:20px}}
