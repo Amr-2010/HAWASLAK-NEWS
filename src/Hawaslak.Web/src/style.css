@@ -241,3 +241,9 @@ body{background:#f5f7f9;color:#17202c}
 .feature-detail h1{font-size:clamp(23px,3vw,38px)}
 .feature-detail img{display:block;width:100%;max-height:450px;object-fit:cover;margin:16px 0;border-radius:12px}
 .feature-body{white-space:pre-wrap;line-height:2;font-size:17px;margin:20px 0;overflow-wrap:anywhere}
+
+.manual-news-section{margin:18px 0 24px}
+.manual-news-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:14px}
+.manual-news-list .story-body{padding:16px}
+.manual-news-list .story-body h2{margin:8px 0}
+.manual-news-list button{background:#b90d21;color:white;border:0;border-radius:7px;padding:9px 13px;cursor:pointer}
