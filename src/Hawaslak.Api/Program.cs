@@ -28,6 +28,30 @@ app.MapPost("/api/admin/collect", async (HttpRequest request, NewsCollector coll
     var count = await collector.CollectOnce(ct);
     return Results.Ok(new { collected = count });
 });
+app.MapPost("/api/admin/sources/check-all", async (HttpRequest request, NewsStore store, IHttpClientFactory clients, CancellationToken ct) =>
+{
+    if(!Authorized(request))return Results.Unauthorized();
+    var feeds=await store.AllFeedsForDiagnostics(ct);
+    using var throttle=new SemaphoreSlim(5);
+    var checks=await Task.WhenAll(feeds.Select(async feed=>{
+        await throttle.WaitAsync(ct);
+        try{
+            using var timeout=CancellationTokenSource.CreateLinkedTokenSource(ct);
+            timeout.CancelAfter(TimeSpan.FromSeconds(12));
+            using var response=await clients.CreateClient("rss").GetAsync(feed.Url,HttpCompletionOption.ResponseHeadersRead,timeout.Token);
+            if(!response.IsSuccessStatusCode)return new {feed.Id,feed.Name,feed.Url,ok=false,http=(int)response.StatusCode,items=0,error="HTTP "+(int)response.StatusCode};
+            if(response.Content.Headers.ContentLength>2_000_000)return new {feed.Id,feed.Name,feed.Url,ok=false,http=(int)response.StatusCode,items=0,error="Feed exceeds 2 MB"};
+            await using var stream=await response.Content.ReadAsStreamAsync(timeout.Token);
+            var xml=await XDocument.LoadAsync(stream,LoadOptions.None,timeout.Token);
+            var entries=xml.Descendants().Count(x=>x.Name.LocalName is "item" or "entry");
+            var isFeed=xml.Root?.Name.LocalName is "rss" or "feed" or "RDF";
+            return new {feed.Id,feed.Name,feed.Url,ok=isFeed&&entries>0,http=(int)response.StatusCode,items=entries,error=isFeed?(entries>0?"":"No items in RSS"):"Response is not an RSS/Atom feed"};
+        }catch(Exception ex) when(ex is not OperationCanceledException || !ct.IsCancellationRequested){
+            return new {feed.Id,feed.Name,feed.Url,ok=false,http=0,items=0,error=ex.GetType().Name+": "+ex.Message[..Math.Min(130,ex.Message.Length)]};
+        }finally{throttle.Release();}
+    }));
+    return Results.Ok(new {total=checks.Length,working=checks.Count(x=>x.ok),failed=checks.Count(x=>!x.ok),checkedAt=DateTimeOffset.UtcNow,checks});
+});
 app.MapPost("/api/admin/sources", async (HttpRequest request, NewsStore store, SourceInput input, CancellationToken ct) =>
 {
     if (!Authorized(request)) return Results.Unauthorized();
@@ -378,6 +402,15 @@ ORDER BY i.original_published_at DESC LIMIT 300", conn);
         var rows = new List<object>();
         while (await r.ReadAsync(ct)) rows.Add(new { id=r.GetInt64(0), title=r.GetString(1), subject=r.IsDBNull(2)?null:r.GetString(2), source=r.GetString(3), url=r.GetString(4), author=r.IsDBNull(5)?null:r.GetString(5), publishedAt=r.GetDateTime(6), imageCount=r.GetInt32(7), country=r.IsDBNull(8)?null:r.GetString(8).Trim(),category=r.GetString(9),region=r.GetString(10),imageUrl=r.IsDBNull(11)?null:r.GetString(11) });
         return rows;
+    }
+    public async Task<List<(long Id,string Name,string Url)>> AllFeedsForDiagnostics(CancellationToken ct)
+    {
+        var feeds=new List<(long,string,string)>();
+        await using var conn=await Open(ct);
+        await using var cmd=new NpgsqlCommand("SELECT id,name,feed_url FROM news_feeds ORDER BY id",conn);
+        await using var reader=await cmd.ExecuteReaderAsync(ct);
+        while(await reader.ReadAsync(ct))feeds.Add((reader.GetInt64(0),reader.GetString(1),reader.GetString(2)));
+        return feeds;
     }
     public async Task<object> Status(CancellationToken ct)
     {
