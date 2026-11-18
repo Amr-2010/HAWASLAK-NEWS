@@ -545,6 +545,11 @@ INSERT INTO news_feeds(name,country_code,feed_url,enabled,auto_publish_allowed,l
 ('Youm7 Culture & Literature','EG','https://www.youm7.com/rss/SectionRss?SectionID=94',true,false,'Official publisher culture RSS; editorial approval required'),
 ('Al Masry Al Youm Main RSS','EG','https://www.almasryalyoum.com/rss/rssfeeds',true,false,'Third-party RSS reader reports working; editorial approval required')
 ON CONFLICT(feed_url) DO NOTHING;
+-- RSS links checked against current publisher output or actively monitored feed directories (Nov 2026).
+INSERT INTO news_feeds(name,country_code,feed_url,enabled,auto_publish_allowed,license_notes) VALUES
+('Youm7 Technology Verified','EG','https://www.youm7.com/rss/SectionRss?SectionID=328',true,false,'Publisher feed content inspected Nov 2026; editorial review'),
+('Youm7 Governorates Verified','EG','https://www.youm7.com/rss/SectionRss?SectionID=296',true,false,'Publisher feed content inspected Nov 2026; editorial review')
+ON CONFLICT(feed_url) DO NOTHING;
 CREATE TABLE IF NOT EXISTS editorial_features (
  id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
  kind text NOT NULL CHECK(kind IN ('article','special_file','news')),
@@ -812,6 +817,10 @@ VALUES(@n,@c,@u,@a,@l) ON CONFLICT(feed_url) DO UPDATE SET name=EXCLUDED.name,co
         await using var cmd=new NpgsqlCommand("SELECT feed_url FROM news_feeds WHERE id=@id",conn);
         cmd.Parameters.AddWithValue("id",feedId);
         var url=(await cmd.ExecuteScalarAsync(ct))?.ToString()??"";
+        if(url.Contains("SectionID=328",StringComparison.OrdinalIgnoreCase))return "technology";
+        if(url.Contains("SectionID=298",StringComparison.OrdinalIgnoreCase)||url.Contains("rss/13.aspx",StringComparison.OrdinalIgnoreCase))return "sports";
+        if(url.Contains("SectionID=245",StringComparison.OrdinalIgnoreCase)||url.Contains("rss/4.aspx",StringComparison.OrdinalIgnoreCase))return "health";
+        if(url.Contains("SectionID=48",StringComparison.OrdinalIgnoreCase)||url.Contains("rss/7.aspx",StringComparison.OrdinalIgnoreCase))return "arts";
         if(url.Contains("/category/politics-en/",StringComparison.OrdinalIgnoreCase))return "politics";
         if(url.Contains("/category/economics-en/",StringComparison.OrdinalIgnoreCase))return "economy";
         if(url.Contains("/category/culture/",StringComparison.OrdinalIgnoreCase)||url.Contains("SectionID=94",StringComparison.OrdinalIgnoreCase))return "literature";
