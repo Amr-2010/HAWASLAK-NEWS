@@ -170,3 +170,11 @@ body{background:#f5f7f9;color:#17202c}
 .egypt-editorial .story-category{background:#bf0d23;color:white}
 @media(max-width:980px){.newsroom-front{grid-template-columns:1fr}.front-sidebar{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.front-sidebar-title{grid-column:1/-1}.topic-shortcuts{grid-template-columns:repeat(4,minmax(0,1fr))}.editorial-topic-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:650px){.news-main.egypt-editorial{padding:12px}.front-sidebar{grid-template-columns:1fr}.front-lead-bottom{grid-template-columns:1fr}.topic-shortcuts{grid-template-columns:repeat(4,minmax(0,1fr));gap:5px}.topic-shortcuts button{min-height:66px;font-size:11px}.topic-shortcuts button span{font-size:20px}.editorial-feature-grid,.editorial-topic-grid{grid-template-columns:1fr 1fr;gap:9px}.egypt-editorial .news-card h2{font-size:13px}.newsroom-controls{flex-wrap:wrap}.front-lead .lead-story h2{font-size:23px}}
+
+/* Publisher-permitted RSS photos; branded placeholder when no image is available */
+.story-surface{position:relative;overflow:hidden}
+.story-image{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center;display:block;z-index:1}
+.story-surface .story-category{position:relative;z-index:3}
+.story-surface .story-graphic{position:absolute;inset:0;align-items:center;justify-content:center;z-index:0}
+.egypt-editorial .news-card .story-surface{min-height:160px}
+.front-lead .lead-story .story-surface{min-height:230px}
