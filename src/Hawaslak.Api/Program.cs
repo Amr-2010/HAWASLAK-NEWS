@@ -54,6 +54,11 @@ app.MapPost("/api/admin/articles/{id:long}/status", async (HttpRequest request, 
     var saved=await store.ChangeStatus(id,edit.Status,ct);
     return saved ? Results.Ok(new { saved=true }) : Results.NotFound();
 });
+app.MapPost("/api/admin/articles/publish-ready", async (HttpRequest request, NewsStore store, CancellationToken ct) =>
+{
+    if (!Authorized(request)) return Results.Unauthorized();
+    return Results.Ok(await store.PublishReady(ct));
+});
 app.MapDelete("/api/admin/articles/{id:long}", async (HttpRequest request, NewsStore store, long id, CancellationToken ct) =>
 {
     if (!Authorized(request)) return Results.Unauthorized();
@@ -166,8 +171,12 @@ VALUES
 ('DW Germany','DE','https://rss.dw.com/xml/rss-en-all',true,false,'Candidate RSS feed; verify access and republication rights'),
 ('Sky News UK','GB','https://feeds.skynews.com/feeds/rss/home.xml',true,false,'Candidate RSS feed; verify access and republication rights')
 ON CONFLICT(feed_url) DO NOTHING;
+-- Pause known failing endpoints (including the duplicate Youm7 feed); keep collected items.
+UPDATE news_feeds SET enabled=false,
+ license_notes=concat_ws(' | ',NULLIF(license_notes,''),'Paused: invalid RSS or blocked; verify an official feed URL')
+ WHERE feed_url IN ('https://www.youm7.com/rss','https://www.youm7.com/rss/SectionRss?SectionID=319','https://www.aljazeera.net/aljazeera/rss/ar','https://gate.ahram.org.eg/rss','https://english.ahram.org.eg/rss.aspx','https://www.almasryalyoum.com/rss/');
 -- Repair previously seeded Egyptian feeds without deleting collected articles.
-UPDATE news_feeds SET feed_url='https://www.youm7.com/rss/SectionRss?SectionID=319',last_error=NULL,last_checked=NULL,enabled=true
+UPDATE news_feeds SET feed_url='https://www.youm7.com/rss/SectionRss?SectionID=319',last_error=NULL,last_checked=NULL,enabled=false
  WHERE name='Youm7 Egypt' AND feed_url='https://www.youm7.com/rss'
  AND NOT EXISTS(SELECT 1 FROM news_feeds WHERE feed_url='https://www.youm7.com/rss/SectionRss?SectionID=319');
 UPDATE news_feeds SET enabled=false,license_notes=concat_ws(' | ',NULLIF(license_notes,''),'Paused: feed endpoint blocked or invalid; verify official RSS before re-enabling')
@@ -306,6 +315,21 @@ ORDER BY i.imported_at LIMIT @max",conn);
         await using var cmd=new NpgsqlCommand(@"UPDATE news_items SET status=@status,published_at=CASE WHEN @status='published' THEN COALESCE(published_at,now()) ELSE NULL END WHERE id=@id AND (@status<>'published' OR NULLIF(title_ar,'') IS NOT NULL)",conn);
         cmd.Parameters.AddWithValue("id",id);cmd.Parameters.AddWithValue("status",status);
         return await cmd.ExecuteNonQueryAsync(ct)>0;
+    }
+    public async Task<object> PublishReady(CancellationToken ct)
+    {
+        await using var conn=await Open(ct);
+        await using var cmd=new NpgsqlCommand(@"WITH eligible AS (
+ SELECT i.id FROM news_items i JOIN news_feeds f ON f.id=i.feed_id
+ WHERE i.status='pending' AND NULLIF(btrim(i.title_ar),'') IS NOT NULL
+ AND f.auto_publish_allowed=true AND NULLIF(btrim(f.license_notes),'') IS NOT NULL
+)
+UPDATE news_items i SET status='published',published_at=now()
+FROM eligible e WHERE i.id=e.id",conn);
+        var published=await cmd.ExecuteNonQueryAsync(ct);
+        await using var pending=new NpgsqlCommand("SELECT count(*) FROM news_items WHERE status='pending'",conn);
+        var remaining=(long)(await pending.ExecuteScalarAsync(ct)??0L);
+        return new {published,remaining,policy="Only Arabic-ready articles from sources explicitly marked licensed for automatic publication"};
     }
     public async Task<bool> DeleteArticle(long id,CancellationToken ct)
     {
