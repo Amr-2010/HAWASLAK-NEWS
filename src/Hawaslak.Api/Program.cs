@@ -50,7 +50,8 @@ app.MapPost("/api/admin/sources/check-all", async (HttpRequest request, NewsStor
             return new {feed.Id,feed.Name,feed.Url,ok=false,http=0,items=0,error=ex.GetType().Name+": "+ex.Message[..Math.Min(130,ex.Message.Length)]};
         }finally{throttle.Release();}
     }));
-    return Results.Ok(new {total=checks.Length,working=checks.Count(x=>x.ok),failed=checks.Count(x=>!x.ok),checkedAt=DateTimeOffset.UtcNow,checks});
+    if(request.Query["activate"]=="true")await store.ActivateVerifiedFeeds(checks.Where(x=>x.ok).Select(x=>x.Id).ToArray(),ct);
+    return Results.Ok(new {total=checks.Length,working=checks.Count(x=>x.ok),failed=checks.Count(x=>!x.ok),activated=request.Query["activate"]=="true"?checks.Count(x=>x.ok):0,checkedAt=DateTimeOffset.UtcNow,checks});
 });
 app.MapPost("/api/admin/sources", async (HttpRequest request, NewsStore store, SourceInput input, CancellationToken ct) =>
 {
@@ -633,6 +634,14 @@ ORDER BY i.original_published_at DESC LIMIT 300", conn);
         var rows = new List<object>();
         while (await r.ReadAsync(ct)) rows.Add(new { id=r.GetInt64(0), title=r.GetString(1), subject=r.IsDBNull(2)?null:r.GetString(2), source=r.GetString(3), url=r.GetString(4), author=r.IsDBNull(5)?null:r.GetString(5), publishedAt=r.GetDateTime(6), imageCount=r.GetInt32(7), country=r.IsDBNull(8)?null:r.GetString(8).Trim(),category=r.GetString(9),region=r.GetString(10),imageUrl=r.IsDBNull(11)?null:r.GetString(11) });
         return rows;
+    }
+    public async Task ActivateVerifiedFeeds(long[] ids,CancellationToken ct)
+    {
+        if(ids.Length==0)return;
+        await using var conn=await Open(ct);
+        await using var cmd=new NpgsqlCommand("UPDATE news_feeds SET enabled=true,last_checked=now(),last_error=NULL WHERE id=ANY(@ids)",conn);
+        cmd.Parameters.AddWithValue("ids",ids);
+        await cmd.ExecuteNonQueryAsync(ct);
     }
     public async Task<List<(long Id,string Name,string Url)>> AllFeedsForDiagnostics(CancellationToken ct)
     {
