@@ -585,6 +585,7 @@ VALUES(@f,@t,@titleAr,@s,@u,@a,@p,@status,@published,(SELECT country_code FROM n
     private static string Classify(string title)
     {
         var t=title.ToLowerInvariant();
+        if (new[]{"رواية","روايات","شعر","شاعر","أدب","أديب","كتاب جديد","إصدار أدبي","قصة قصيرة","قصص قصيرة","literature","novel","poetry","poet","literary","book fair"}.Any(t.Contains)) return "literature";
         if (new[]{"football","soccer","match","league","رياضة","مباراة","الدوري","كرة القدم"}.Any(t.Contains)) return "sports";
         if (new[]{"economy","market","stocks","business","اقتصاد","بورصة","أسعار","استثمار"}.Any(t.Contains)) return "economy";
         if (new[]{"technology","ai ","software","تكنولوجيا","تقنية","ذكاء اصطناعي"}.Any(t.Contains)) return "technology";
