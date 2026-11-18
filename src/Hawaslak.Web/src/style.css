@@ -110,3 +110,11 @@
 .regional-marquee-group a small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:11px;line-height:1.4;text-align:right}
 .regional-label{line-height:1.5;text-align:center}
 @media(max-width:600px){.regional-marquee-group a{flex-basis:265px;padding:11px 13px}.regional-marquee-group a span{font-size:13px}}
+
+/* Compact two-line news ribbons */
+.regional-strip{min-height:68px}
+.regional-label{font-size:13px;padding:7px 9px}
+.regional-marquee-group a{min-height:68px;flex-basis:310px;padding:7px 13px;gap:2px}
+.regional-marquee-group a span{font-size:12px;line-height:1.45;max-height:2.9em;font-weight:700}
+.regional-marquee-group a small{font-size:10px;line-height:1.2}
+@media(max-width:600px){.regional-marquee-group a{flex-basis:235px;padding:7px 10px}.regional-marquee-group a span{font-size:11.5px}.regional-label{font-size:11px}}
