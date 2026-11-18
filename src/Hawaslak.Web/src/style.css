@@ -314,3 +314,21 @@ body{background:#f5f7f9;color:#17202c}
 .regional-filter-tabs small{font-size:11px;opacity:.75}
 .source-publication-date{display:block;color:#667789;font-size:11px;margin-top:5px;white-space:normal}
 @media(max-width:650px){.regional-filter-tabs{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}.regional-filter-tabs button{padding:10px 4px;font-size:13px}}
+
+/* Per-headline ticker detail and fixed Cairo information footer */
+.regional-marquee-group{align-items:flex-start}
+.ticker-entry{position:relative;display:flex;flex:0 0 auto;flex-direction:column;min-width:180px;max-width:330px;box-sizing:border-box}
+.ticker-headline{display:flex;flex-direction:column;align-items:flex-start;gap:4px;text-align:right;direction:rtl;border:0;border-inline-end:1px solid #e0e6eb;background:transparent;color:inherit;font:inherit;font-weight:750;padding:12px 15px;cursor:pointer;width:100%;min-height:64px;white-space:normal}
+.ticker-headline small{color:#697d8d;font-weight:400;font-size:11px}
+.ticker-item-detail{position:relative;width:100%;box-sizing:border-box;max-width:330px;min-width:0;white-space:normal;direction:rtl;overflow-wrap:anywhere;padding:8px}
+.ticker-item-detail .inline-news-detail{width:100%!important;max-width:100%!important;min-width:0!important;box-sizing:border-box!important;white-space:normal!important;overflow-wrap:anywhere;word-break:normal;font-size:14px;line-height:1.75}
+.ticker-close{display:block;margin-inline-start:auto;border:0;background:#bd0a25;color:white;border-radius:6px;padding:2px 9px;cursor:pointer}
+.regional-track:has(.ticker-item-detail){overflow-x:auto;overflow-y:visible}
+.regional-marquee:has(.ticker-item-detail){animation-play-state:paused!important}
+.regional-strip.arab .regional-label{background:#176d62;color:#fff}
+.fixed-info-bar{position:fixed;bottom:0;left:0;right:0;z-index:999;display:flex;align-items:center;justify-content:space-around;gap:16px;background:#102c40;color:#fff;border-top:3px solid #c70c28;padding:9px 14px;box-shadow:0 -3px 16px #0002;direction:rtl;font-size:12px}
+.fixed-currency,.fixed-weather{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:9px}
+.fixed-info-bar strong{color:#fff}
+.fixed-info-bar span{color:#e0eaf2}
+body{padding-bottom:75px}
+@media(max-width:650px){.ticker-entry{min-width:190px;max-width:260px}.ticker-item-detail{max-width:260px}.fixed-info-bar{flex-direction:column;gap:4px;padding:6px 8px;font-size:11px}.fixed-currency,.fixed-weather{gap:7px}body{padding-bottom:100px}}
