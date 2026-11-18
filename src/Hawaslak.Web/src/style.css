@@ -247,3 +247,12 @@ body{background:#f5f7f9;color:#17202c}
 .manual-news-list .story-body{padding:16px}
 .manual-news-list .story-body h2{margin:8px 0}
 .manual-news-list button{background:#b90d21;color:white;border:0;border-radius:7px;padding:9px 13px;cursor:pointer}
+
+/* Navigation refresh: category tiles are the primary navigation. */
+.category-nav{display:none!important}
+.header-utility-actions{display:flex;justify-content:flex-end;align-items:center;gap:10px;padding:8px max(14px,2.5vw);background:#f5f7f9}
+.header-utility-actions button{background:transparent;color:#17364a;border:1px solid #d8e1e8;border-radius:9px;padding:8px 12px;font-weight:700;font-size:13px}
+.header-utility-actions button:hover{background:#e9f2f6}
+.topic-shortcuts{display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:9px!important;overflow:visible!important}
+.topic-shortcuts button{min-width:0!important;white-space:normal!important}
+@media(max-width:600px){.topic-shortcuts{gap:7px!important}.topic-shortcuts button{padding:12px 3px!important;font-size:12px!important}.header-utility-actions{padding:7px 10px}.header-utility-actions button{font-size:11px;padding:7px}}
