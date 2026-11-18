@@ -220,7 +220,7 @@ CREATE TABLE IF NOT EXISTS news_images (
     {
         if (!Configured) return Array.Empty<object>();
         await using var conn = await Open(ct);
-        await using var cmd = new NpgsqlCommand(@"SELECT i.id,COALESCE(NULLIF(i.title_ar,''),i.title),i.subject,f.name,i.original_url,i.author_name,i.original_published_at,i.image_count,i.country_code,i.category
+        await using var cmd = new NpgsqlCommand(@"SELECT i.id,COALESCE(NULLIF(i.title_ar,''),i.title),i.subject,f.name,i.original_url,i.author_name,i.original_published_at,i.image_count,i.country_code,i.category,CASE WHEN f.license_notes ILIKE '%IMAGE_EMBED_OK%' THEN i.source_image_url ELSE NULL END AS display_image_url
 FROM news_items i JOIN news_feeds f ON f.id=i.feed_id WHERE i.status='published'
 AND (@country IS NULL OR i.country_code=@country)
 AND (@category IS NULL OR i.category=@category)
@@ -229,7 +229,7 @@ ORDER BY i.original_published_at DESC LIMIT 100", conn);
         cmd.Parameters.Add("category", NpgsqlTypes.NpgsqlDbType.Text).Value = (object?)(string.IsNullOrWhiteSpace(category)?null:category.ToLowerInvariant())??DBNull.Value;
         await using var r = await cmd.ExecuteReaderAsync(ct);
         var rows = new List<object>();
-        while (await r.ReadAsync(ct)) rows.Add(new { id=r.GetInt64(0), title=r.GetString(1), subject=r.IsDBNull(2)?null:r.GetString(2), source=r.GetString(3), url=r.GetString(4), author=r.IsDBNull(5)?null:r.GetString(5), publishedAt=r.GetDateTime(6), imageCount=r.GetInt32(7), country=r.IsDBNull(8)?null:r.GetString(8).Trim(),category=r.GetString(9) });
+        while (await r.ReadAsync(ct)) rows.Add(new { id=r.GetInt64(0), title=r.GetString(1), subject=r.IsDBNull(2)?null:r.GetString(2), source=r.GetString(3), url=r.GetString(4), author=r.IsDBNull(5)?null:r.GetString(5), publishedAt=r.GetDateTime(6), imageCount=r.GetInt32(7), country=r.IsDBNull(8)?null:r.GetString(8).Trim(),category=r.GetString(9),imageUrl=r.IsDBNull(10)?null:r.GetString(10) });
         return rows;
     }
     public async Task<object> Status(CancellationToken ct)
