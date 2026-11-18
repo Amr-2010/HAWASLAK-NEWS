@@ -121,6 +121,13 @@ app.MapPut("/api/admin/site-settings", async (HttpRequest request,NewsStore stor
  var isHttps=Uri.TryCreate(input.LogoUrl,UriKind.Absolute,out var logoUri)&&logoUri.Scheme=="https"&&input.LogoUrl.Length<=1000;
  if(!isHttps&&!(isImageData&&input.LogoUrl.Length<=300000))return Results.BadRequest(new {error="Logo must be HTTPS URL or PNG/JPEG/WebP image up to 220 KB"});
 }
+ if(new[]{input.BannerTitle,input.BannerSubtitle,input.BannerButtonText}.Any(x=>x?.Length>300)||input.BannerLink?.Length>1500)return Results.BadRequest(new {error="Banner text or link too long"});
+ if(!string.IsNullOrWhiteSpace(input.BannerLink)&&!(Uri.TryCreate(input.BannerLink,UriKind.Absolute,out var bannerLink)&&bannerLink.Scheme=="https"))return Results.BadRequest(new {error="Banner link must use HTTPS"});
+ if(!string.IsNullOrWhiteSpace(input.BannerImageUrl)){
+ var imageData=System.Text.RegularExpressions.Regex.IsMatch(input.BannerImageUrl,@"^data:image/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$",System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+ var imageHttps=Uri.TryCreate(input.BannerImageUrl,UriKind.Absolute,out var imageUri)&&imageUri.Scheme=="https"&&input.BannerImageUrl.Length<=1500;
+ if(!imageHttps&&!(imageData&&input.BannerImageUrl.Length<=1500000))return Results.BadRequest(new {error="Banner image must be HTTPS or PNG/JPEG/WebP under 1 MB"});
+ }
  if(input.Categories is null||input.Categories.Count>24||input.Categories.Any(x=>string.IsNullOrWhiteSpace(x.Id)||!System.Text.RegularExpressions.Regex.IsMatch(x.Id,@"^[a-z][a-z0-9_-]{1,30}$")||string.IsNullOrWhiteSpace(x.Ar)||x.Ar.Length>60||string.IsNullOrWhiteSpace(x.En)||x.En.Length>60)||input.Categories.Select(x=>x.Id).Distinct().Count()!=input.Categories.Count)return Results.BadRequest(new {error="Invalid categories"});
  await store.SaveSiteSettings(input,ct);return Results.Ok(new {saved=true});
 });
@@ -150,7 +157,7 @@ bool Authorized(HttpRequest request)
     return submitted.Length == secret.Length && CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(submitted), Encoding.UTF8.GetBytes(secret));
 }
 record SiteCategory(string Id,string Ar,string En,string Icon);
-record SiteSettingsInput(string? LogoUrl,List<SiteCategory> Categories);
+record SiteSettingsInput(string? LogoUrl,List<SiteCategory> Categories,string? BannerTitle=null,string? BannerSubtitle=null,string? BannerImageUrl=null,string? BannerLink=null,string? BannerButtonText=null);
 record FeatureInput(long? Id,string Kind,string Title,string Body,string? Excerpt,string? CoverUrl,bool Published);
 record SourceInput(string Name, string CountryCode, string FeedUrl, bool AutoPublishAllowed, string LicenseNotes);
 record ArticleEdit(string TitleAr,string? Subject,string CountryCode,string Category);
@@ -548,23 +555,23 @@ CREATE TABLE IF NOT EXISTS news_images (
         var defaults=new List<SiteCategory>{new("general","الرئيسية","Home","🇪🇬"),new("politics","سياسة","Politics","🌐"),new("economy","اقتصاد","Economy","📊"),new("sports","رياضة","Sports","⚽"),new("technology","تكنولوجيا","Technology","💻"),new("health","صحة","Health","⚕️"),new("education","تعليم","Education","🎓"),new("arts","فن","Arts","🎭"),new("literature","أدب","Literature","📚"),new("crime","الجريمة والعقاب","Crime & Justice","⚖️")};
         if(!Configured)return new SiteSettingsInput(null,defaults);
         await using var conn=await Open(ct);
-        await using var cmd=new NpgsqlCommand("SELECT key,value FROM site_settings WHERE key IN ('logo_url','categories')",conn);
+        await using var cmd=new NpgsqlCommand("SELECT key,value FROM site_settings WHERE key IN ('logo_url','categories','banner_title','banner_subtitle','banner_image_url','banner_link','banner_button_text')",conn);
         await using var reader=await cmd.ExecuteReaderAsync(ct);
-        string? logo=null;List<SiteCategory>? categories=null;
+        string? logo=null;List<SiteCategory>? categories=null;var banner=new Dictionary<string,string>();
         while(await reader.ReadAsync(ct))
         {
             if(reader.GetString(0)=="logo_url")logo=reader.GetString(1);
-            else try{categories=System.Text.Json.JsonSerializer.Deserialize<List<SiteCategory>>(reader.GetString(1));}catch(System.Text.Json.JsonException){}
+            else if(reader.GetString(0)=="categories")try{categories=System.Text.Json.JsonSerializer.Deserialize<List<SiteCategory>>(reader.GetString(1));}catch(System.Text.Json.JsonException){} else banner[reader.GetString(0)]=reader.GetString(1);
         }
         if(categories is {Count:>0}&&!categories.Any(x=>x.Id=="literature"))categories.Add(new("literature","أدب","Literature","📚"));
         if(categories is {Count:>0}&&!categories.Any(x=>x.Id=="crime"))categories.Add(new("crime","الجريمة والعقاب","Crime & Justice","⚖️"));
-        return new SiteSettingsInput(logo,categories is {Count:>0}?categories:defaults);
+        return new SiteSettingsInput(logo,categories is {Count:>0}?categories:defaults,banner.GetValueOrDefault("banner_title"),banner.GetValueOrDefault("banner_subtitle"),banner.GetValueOrDefault("banner_image_url"),banner.GetValueOrDefault("banner_link"),banner.GetValueOrDefault("banner_button_text"));
     }
     public async Task SaveSiteSettings(SiteSettingsInput input,CancellationToken ct)
     {
         await using var conn=await Open(ct);
         await using var tx=await conn.BeginTransactionAsync(ct);
-        foreach(var item in new[]{new KeyValuePair<string,string>("logo_url",input.LogoUrl??""),new KeyValuePair<string,string>("categories",System.Text.Json.JsonSerializer.Serialize(input.Categories))})
+        foreach(var item in new[]{new KeyValuePair<string,string>("logo_url",input.LogoUrl??""),new KeyValuePair<string,string>("categories",System.Text.Json.JsonSerializer.Serialize(input.Categories)),new("banner_title",input.BannerTitle??""),new("banner_subtitle",input.BannerSubtitle??""),new("banner_image_url",input.BannerImageUrl??""),new("banner_link",input.BannerLink??""),new("banner_button_text",input.BannerButtonText??"")})
         {
             await using var cmd=new NpgsqlCommand("INSERT INTO site_settings(key,value) VALUES(@k,@v) ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value",conn,tx);
             cmd.Parameters.AddWithValue("k",item.Key);cmd.Parameters.AddWithValue("v",item.Value);
