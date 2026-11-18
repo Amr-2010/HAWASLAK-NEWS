@@ -218,3 +218,7 @@ body{background:#f5f7f9;color:#17202c}
  .front-lead .lead-story{min-height:260px}
  .front-lead .lead-story .story-surface{min-height:160px}
 }
+
+.admin-article-filter{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 0 14px;font-size:13px;color:#3b556b}
+.admin-article-filter select{border:1px solid #cad8e3;border-radius:8px;padding:9px;background:#fff;color:#173b50;min-width:140px}
+.admin-article-filter span{color:#566c7c}
