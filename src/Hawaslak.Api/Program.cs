@@ -298,6 +298,25 @@ INSERT INTO news_feeds(name,country_code,feed_url,enabled,auto_publish_allowed,l
 ('Al Ahram Arts','EG','https://gate.ahram.org.eg/rss/7.aspx',true,false,'Egyptian arts candidate; verify feed and publisher permissions'),
 ('Al Ahram Health','EG','https://gate.ahram.org.eg/rss/4.aspx',true,false,'Egyptian health candidate; verify feed and publisher permissions')
 ON CONFLICT(feed_url) DO NOTHING;
+-- Egyptian publishers across general news, sports, business, culture and local reporting.
+-- Feed URLs listed in public RSS directories; validate each through admin check-all before relying on it.
+INSERT INTO news_feeds(name,country_code,feed_url,enabled,auto_publish_allowed,license_notes) VALUES
+('Egypt Independent','EG','https://www.egyptindependent.com/feed/',true,false,'RSS directory candidate; verify connection and rights'),
+('Daily News Egypt','EG','https://www.dailynewsegypt.com/feed/',true,false,'RSS directory candidate; verify connection and rights'),
+('Egyptian Streets','EG','https://egyptianstreets.com/feed/',true,false,'RSS directory candidate; verify connection and rights'),
+('KingFut Sports','EG','https://feeds.feedburner.com/KingFut',true,false,'Egyptian specialist sports candidate; verify connection and rights'),
+('Egypt Oil and Gas','EG','https://egyptoil-gas.com/news/feed/',true,false,'Egyptian specialist energy candidate; verify connection and rights'),
+('Mada Masr','EG','https://www.madamasr.com/en/feed/',true,false,'Egyptian independent reporting candidate; verify connection and rights'),
+('Egyptian Gazette','EG','https://egyptian-gazette.com/feed/',true,false,'Egyptian cross-section reporting candidate; verify connection and rights'),
+('Sada El Balad','EG','https://www.elbalad.news/rss.aspx',true,false,'Egyptian cross-section RSS candidate; verify connection and rights'),
+('Al Dostor','EG','https://www.dostor.org/rss.aspx',true,false,'Egyptian cross-section RSS candidate; verify connection and rights'),
+('Misr5','EG','https://misr5.com/feed/',true,false,'Egyptian cross-section RSS candidate; verify connection and rights'),
+('Al Ahaly','EG','https://alahalygate.com/feed/',true,false,'Egyptian news and opinion candidate; verify connection and rights'),
+('El Zaman','EG','https://www.elzmannews.com/rss.xml',true,false,'Egyptian news candidate; verify connection and rights'),
+('Nile Sports','EG','https://nilesports.com/feed/',true,false,'Egyptian specialist sports candidate; verify connection and rights'),
+('Al Sabah','EG','https://www.sabaharabi.com/rss.xml',true,false,'Egyptian reporting candidate; verify connection and rights'),
+('Youm7 Sports','EG','https://www.youm7.com/rss/SectionRss?SectionID=298',true,false,'Egyptian sports section candidate; verify connection and rights')
+ON CONFLICT(feed_url) DO NOTHING;
 CREATE TABLE IF NOT EXISTS editorial_features (
  id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
  kind text NOT NULL CHECK(kind IN ('article','special_file','news')),
