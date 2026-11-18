@@ -86,3 +86,9 @@
 .story-body h2 a:hover{color:#c94e42}
 .story-footer a{color:#096783}
 @media(max-width:600px){.regional-strip{grid-template-columns:105px minmax(0,1fr)}.regional-label{font-size:12px;padding:8px}.regional-track a{flex-basis:245px}.brand{justify-content:center}.brand small{text-align:center}}
+
+.country-filter{display:flex;align-items:center;flex-wrap:wrap;gap:12px;background:#fff;border:1px solid #dce9ee;border-radius:12px;padding:13px 17px;margin-bottom:22px}
+.country-filter label{font-size:14px;font-weight:800;color:#123b51}
+.country-filter select{min-width:180px;width:auto;padding:10px 14px;border:1px solid #cbdbe4;border-radius:8px;background:#f7fbfd;color:#173c53;font-weight:700}
+.country-filter span{color:#778b99;font-size:12px}
+@media(max-width:600px){.country-filter select{flex:1;min-width:130px}.country-filter span{flex-basis:100%}}
