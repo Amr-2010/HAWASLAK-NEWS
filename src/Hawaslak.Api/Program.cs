@@ -225,6 +225,11 @@ ALTER TABLE news_items ADD COLUMN IF NOT EXISTS source_image_url text;
 ALTER TABLE news_items ADD COLUMN IF NOT EXISTS ai_provider text;
 ALTER TABLE news_items ADD COLUMN IF NOT EXISTS ai_model text;
 ALTER TABLE news_items ADD COLUMN IF NOT EXISTS ai_processed_at timestamptz;
+-- Arabic-language headlines are editorially ready without translation AI; keep pending for admin approval.
+UPDATE news_items SET title_ar=title
+WHERE NULLIF(btrim(title_ar),'') IS NULL
+  AND title ~ '[ء-ي].*[ء-ي].*[ء-ي]'
+  AND length(regexp_replace(title,'[^A-Za-z]','','g')) < length(regexp_replace(title,'[^ء-ي]','','g'));
 CREATE INDEX IF NOT EXISTS news_items_country_category ON news_items(country_code,category,original_published_at DESC);
 CREATE INDEX IF NOT EXISTS news_items_recent ON news_items(original_published_at DESC);
 -- International source expansion: publicly documented discovery feeds only.
@@ -501,10 +506,11 @@ VALUES(@n,@c,@u,@a,@l) ON CONFLICT(feed_url) DO UPDATE SET name=EXCLUDED.name,co
         var total=0;
         foreach(var item in items)
         {
-            await using var cmd=new NpgsqlCommand(@"INSERT INTO news_items(feed_id,title,subject,original_url,author_name,original_published_at,status,published_at,country_code,category,rss_excerpt,source_image_url)
-VALUES(@f,@t,@s,@u,@a,@p,@status,@published,(SELECT country_code FROM news_feeds WHERE id=@f),@category,@excerpt,@image) ON CONFLICT(original_url) DO UPDATE SET rss_excerpt=COALESCE(news_items.rss_excerpt,EXCLUDED.rss_excerpt),source_image_url=COALESCE(news_items.source_image_url,EXCLUDED.source_image_url)",conn);
+            await using var cmd=new NpgsqlCommand(@"INSERT INTO news_items(feed_id,title,title_ar,subject,original_url,author_name,original_published_at,status,published_at,country_code,category,rss_excerpt,source_image_url)
+VALUES(@f,@t,@titleAr,@s,@u,@a,@p,@status,@published,(SELECT country_code FROM news_feeds WHERE id=@f),@category,@excerpt,@image) ON CONFLICT(original_url) DO UPDATE SET title_ar=COALESCE(NULLIF(news_items.title_ar,''),EXCLUDED.title_ar),rss_excerpt=COALESCE(news_items.rss_excerpt,EXCLUDED.rss_excerpt),source_image_url=COALESCE(news_items.source_image_url,EXCLUDED.source_image_url)",conn);
             cmd.Parameters.AddWithValue("f",feedId);
             cmd.Parameters.AddWithValue("t",item.Title);
+            cmd.Parameters.AddWithValue("titleAr",LooksArabic(item.Title)?item.Title:DBNull.Value);
             // Do not copy full article bodies. Excerpts require publisher permission and are not imported by default.
             cmd.Parameters.AddWithValue("s",DBNull.Value);
             cmd.Parameters.AddWithValue("u",item.Url);
@@ -518,6 +524,12 @@ VALUES(@f,@t,@s,@u,@a,@p,@status,@published,(SELECT country_code FROM news_feeds
             total+=await cmd.ExecuteNonQueryAsync(ct);
         }
         return total;
+    }
+    private static bool LooksArabic(string title)
+    {
+        var arabic=title.Count(c=>c is >= '\u0621' and <= '\u064A');
+        var latin=title.Count(c=>c is >= 'A' and <= 'Z' or >= 'a' and <= 'z');
+        return arabic>=3 && arabic>latin;
     }
     private static string Classify(string title)
     {
