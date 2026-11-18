@@ -815,6 +815,7 @@ VALUES(@n,@c,@u,@a,@l) ON CONFLICT(feed_url) DO UPDATE SET name=EXCLUDED.name,co
     {
         await using var conn=await Open(ct);
         var total=0;
+        var feedCategory=await FeedCategory(feedId,conn,ct);
         foreach(var item in items)
         {
             await using var cmd=new NpgsqlCommand(@"INSERT INTO news_items(feed_id,title,title_ar,subject,original_url,author_name,original_published_at,status,published_at,country_code,category,rss_excerpt,source_image_url)
@@ -828,7 +829,6 @@ VALUES(@f,@t,@titleAr,@s,@u,@a,@p,@status,@published,(SELECT country_code FROM n
             cmd.Parameters.AddWithValue("a",(object?)item.Author??DBNull.Value);
             cmd.Parameters.AddWithValue("p",item.Published.UtcDateTime);
             // Prefer a dedicated publisher section over title-keyword guessing.
-            var feedCategory=await FeedCategory(feedId,conn,ct);
             cmd.Parameters.AddWithValue("category", feedCategory??Classify(item.Title));
             cmd.Parameters.AddWithValue("excerpt",(object?)item.Excerpt??DBNull.Value);
             cmd.Parameters.AddWithValue("image",(object?)item.ImageUrl??DBNull.Value);
