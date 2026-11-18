@@ -29,7 +29,7 @@ sealed class NewsAiWorker : BackgroundService
             if(now<_cooldownUntil) return new {processed=0,error="All providers are cooling down"};
             var items=await _store.GetPendingAiBatch(allowed,ct);
             var completed=0;
-            if(items.Count==0) return new {processed=0,error="No pending articles without an Arabic title are available for AI preparation"};
+            if(items.Count==0) return new {processed=0,error="No pending articles with a missing Arabic title or summary are eligible for AI preparation"};
             foreach (var item in items)
             {
                 _used++;
