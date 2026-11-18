@@ -145,6 +145,27 @@ VALUES
  ('DW English','DE','https://rss.dw.com/rdf/rss-en-all',true,false,'RSS discovery only; review rights before publication'),
  ('The Guardian World','GB','https://www.theguardian.com/world/rss',true,false,'RSS discovery only; review rights before publication')
 ON CONFLICT(feed_url) DO NOTHING;
+-- Curated discovery candidates: each feed is monitored independently; publishing remains manual until rights are verified.
+INSERT INTO news_feeds(name,country_code,feed_url,enabled,auto_publish_allowed,license_notes)
+VALUES
+('Al-Ahram Egypt','EG','https://gate.ahram.org.eg/rss',true,false,'Candidate RSS feed; verify access and republication rights'),
+('Youm7 Egypt','EG','https://www.youm7.com/rss',true,false,'Candidate RSS feed; verify access and republication rights'),
+('Al-Masry Al-Youm','EG','https://www.almasryalyoum.com/rss/',true,false,'Candidate RSS feed; verify access and republication rights'),
+('Mada Masr','EG','https://www.madamasr.com/ar/feed/',true,false,'Candidate RSS feed; verify access and republication rights'),
+('Egypt Independent','EG','https://www.egyptindependent.com/feed/',true,false,'Candidate RSS feed; verify access and republication rights'),
+('Daily News Egypt','EG','https://www.dailynewsegypt.com/feed/',true,false,'Candidate RSS feed; verify access and republication rights'),
+('Ahram Online','EG','https://english.ahram.org.eg/rss.aspx',true,false,'Candidate RSS feed; verify access and republication rights'),
+('BBC UK','GB','https://feeds.bbci.co.uk/news/uk/rss.xml',true,false,'Candidate RSS feed; verify access and republication rights'),
+('BBC World','GB','https://feeds.bbci.co.uk/news/world/rss.xml',true,false,'World coverage; country identifies publisher, not event'),
+('France 24 France','FR','https://www.france24.com/en/france/rss',true,false,'Candidate RSS feed; verify access and republication rights'),
+('Euronews Europe','FR','https://www.euronews.com/rss',true,false,'World coverage; country identifies publisher, not event'),
+('Al Jazeera Arabic','QA','https://www.aljazeera.net/aljazeera/rss/ar',true,false,'Candidate RSS feed; verify access and republication rights'),
+('The Straits Times Singapore','SG','https://www.straitstimes.com/news/singapore/rss.xml',true,false,'Candidate RSS feed; verify access and republication rights'),
+('CNA Singapore','SG','https://www.channelnewsasia.com/api/v1/rss-outbound-feed?_format=xml',true,false,'Candidate RSS feed; verify access and republication rights'),
+('NHK Japan','JP','https://www.nhk.or.jp/rss/news/cat0.xml',true,false,'Candidate RSS feed; verify access and republication rights'),
+('DW Germany','DE','https://rss.dw.com/xml/rss-en-all',true,false,'Candidate RSS feed; verify access and republication rights'),
+('Sky News UK','GB','https://feeds.skynews.com/feeds/rss/home.xml',true,false,'Candidate RSS feed; verify access and republication rights')
+ON CONFLICT(feed_url) DO NOTHING;
 CREATE TABLE IF NOT EXISTS news_items (
  id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
  feed_id bigint NOT NULL REFERENCES news_feeds(id),
