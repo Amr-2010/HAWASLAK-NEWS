@@ -118,3 +118,9 @@
 .regional-marquee-group a span{font-size:12px;line-height:1.45;max-height:2.9em;font-weight:700}
 .regional-marquee-group a small{font-size:10px;line-height:1.2}
 @media(max-width:600px){.regional-marquee-group a{flex-basis:235px;padding:7px 10px}.regional-marquee-group a span{font-size:11.5px}.regional-label{font-size:11px}}
+
+/* Official Hawaslak News transparent logo */
+.brand-with-logo{display:flex;align-items:center;justify-content:center;min-width:0}
+.site-brand-logo{display:block;width:min(310px,32vw);height:94px;object-fit:contain;object-position:center}
+.brand-fallback{align-items:center;gap:8px;font-size:28px;color:#0b2336}
+@media(max-width:760px){.site-brand-logo{width:min(260px,80vw);height:74px}}
