@@ -246,6 +246,12 @@ INSERT INTO news_feeds(name,country_code,feed_url,enabled,auto_publish_allowed,l
 ('AP via Google News','US','https://news.google.com/rss/search?q=when:24h+site:apnews.com&hl=en-US&gl=US&ceid=US:en',true,false,'Google News discovery, NOT an AP licensed feed; link only')
 ON CONFLICT(feed_url) DO NOTHING;
 CREATE TABLE IF NOT EXISTS site_settings (key text PRIMARY KEY,value text NOT NULL);
+-- Verified Egyptian RSS discovery endpoints, November 2026 (independently reported active).
+INSERT INTO news_feeds(name,country_code,feed_url,enabled,auto_publish_allowed,license_notes) VALUES
+('Youm7 Egyptian Reports','EG','https://www.youm7.com/rss/SectionRss?SectionID=97',true,false,'RSS discovery; source copyright retained'),
+('Al Masry Al Youm Egypt','EG','https://www.almasryalyoum.com/rss/rssfeeds?sectionId=3',true,false,'RSS discovery; source copyright retained'),
+('Masrawy Egypt','EG','https://www.masrawy.com/rss/feed/35/%D8%A3%D8%AE%D8%A8%D8%A7%D8%B1%20%D9%85%D8%B5%D8%B1-%D8%B3%D9%8A%D8%A7%D8%B3%D8%A9',true,false,'RSS discovery; source copyright retained')
+ON CONFLICT(feed_url) DO NOTHING;
 CREATE TABLE IF NOT EXISTS editorial_features (
  id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
  kind text NOT NULL CHECK(kind IN ('article','special_file','news')),
@@ -339,16 +345,16 @@ ON CONFLICT DO NOTHING",conn);
     {
         if (!Configured) return Array.Empty<object>();
         await using var conn = await Open(ct);
-        await using var cmd = new NpgsqlCommand(@"SELECT i.id,COALESCE(NULLIF(i.title_ar,''),i.title),i.subject,f.name,i.original_url,i.author_name,i.original_published_at,i.image_count,i.country_code,i.category,CASE WHEN f.license_notes ILIKE '%IMAGE_EMBED_OK%' THEN i.source_image_url ELSE NULL END AS display_image_url
+        await using var cmd = new NpgsqlCommand(@"SELECT i.id,COALESCE(NULLIF(i.title_ar,''),i.title),i.subject,f.name,i.original_url,i.author_name,i.original_published_at,i.image_count,i.country_code,i.category,CASE WHEN i.country_code='EG' THEN 'egyptian' WHEN i.country_code IN ('SA','AE','QA','KW','BH','OM','JO','LB','SY','IQ','YE','PS','MA','DZ','TN','LY','SD','MR','SO','DJ','KM') THEN 'arab' ELSE 'world' END AS region,CASE WHEN f.license_notes ILIKE '%IMAGE_EMBED_OK%' THEN i.source_image_url ELSE NULL END AS display_image_url
 FROM news_items i JOIN news_feeds f ON f.id=i.feed_id WHERE i.status='published'
 AND (@country IS NULL OR i.country_code=@country)
 AND (@category IS NULL OR i.category=@category)
-ORDER BY i.original_published_at DESC LIMIT 100", conn);
+ORDER BY i.original_published_at DESC LIMIT 300", conn);
         cmd.Parameters.Add("country", NpgsqlTypes.NpgsqlDbType.Text).Value = (object?)(string.IsNullOrWhiteSpace(country)?null:country.ToUpperInvariant())??DBNull.Value;
         cmd.Parameters.Add("category", NpgsqlTypes.NpgsqlDbType.Text).Value = (object?)(string.IsNullOrWhiteSpace(category)?null:category.ToLowerInvariant())??DBNull.Value;
         await using var r = await cmd.ExecuteReaderAsync(ct);
         var rows = new List<object>();
-        while (await r.ReadAsync(ct)) rows.Add(new { id=r.GetInt64(0), title=r.GetString(1), subject=r.IsDBNull(2)?null:r.GetString(2), source=r.GetString(3), url=r.GetString(4), author=r.IsDBNull(5)?null:r.GetString(5), publishedAt=r.GetDateTime(6), imageCount=r.GetInt32(7), country=r.IsDBNull(8)?null:r.GetString(8).Trim(),category=r.GetString(9),imageUrl=r.IsDBNull(10)?null:r.GetString(10) });
+        while (await r.ReadAsync(ct)) rows.Add(new { id=r.GetInt64(0), title=r.GetString(1), subject=r.IsDBNull(2)?null:r.GetString(2), source=r.GetString(3), url=r.GetString(4), author=r.IsDBNull(5)?null:r.GetString(5), publishedAt=r.GetDateTime(6), imageCount=r.GetInt32(7), country=r.IsDBNull(8)?null:r.GetString(8).Trim(),category=r.GetString(9),region=r.GetString(10),imageUrl=r.IsDBNull(11)?null:r.GetString(11) });
         return rows;
     }
     public async Task<object> Status(CancellationToken ct)
@@ -378,10 +384,10 @@ ORDER BY i.original_published_at DESC LIMIT 100", conn);
     {
         if (!Configured) return Array.Empty<object>();
         await using var conn=await Open(ct);
-        await using var cmd=new NpgsqlCommand("SELECT i.id,i.title,f.name,i.author_name,i.status,i.original_url,i.original_published_at,i.image_count,i.country_code,i.category,i.title_ar,i.subject,i.ai_provider,i.ai_processed_at,i.rss_excerpt,i.source_image_url FROM news_items i JOIN news_feeds f ON f.id=i.feed_id ORDER BY i.imported_at DESC LIMIT 100",conn);
+        await using var cmd=new NpgsqlCommand("SELECT i.id,i.title,f.name,i.author_name,i.status,i.original_url,i.original_published_at,i.image_count,i.country_code,i.category,CASE WHEN i.country_code='EG' THEN 'egyptian' WHEN i.country_code IN ('SA','AE','QA','KW','BH','OM','JO','LB','SY','IQ','YE','PS','MA','DZ','TN','LY','SD','MR','SO','DJ','KM') THEN 'arab' ELSE 'world' END AS region,i.title_ar,i.subject,i.ai_provider,i.ai_processed_at,i.rss_excerpt,i.source_image_url FROM news_items i JOIN news_feeds f ON f.id=i.feed_id ORDER BY i.original_published_at DESC LIMIT 300",conn);
         await using var r=await cmd.ExecuteReaderAsync(ct);
         var rows=new List<object>();
-        while(await r.ReadAsync(ct)) rows.Add(new {id=r.GetInt64(0),title=r.GetString(1),source=r.GetString(2),author=r.IsDBNull(3)?null:r.GetString(3),status=r.GetString(4),url=r.GetString(5),publishedAt=r.GetDateTime(6),images=r.GetInt32(7),country=r.IsDBNull(8)?null:r.GetString(8).Trim(),category=r.GetString(9),titleAr=r.IsDBNull(10)?null:r.GetString(10),subject=r.IsDBNull(11)?null:r.GetString(11),aiProvider=r.IsDBNull(12)?null:r.GetString(12),aiProcessedAt=r.IsDBNull(13)?(DateTime?)null:r.GetDateTime(13),rssExcerpt=r.IsDBNull(14)?null:r.GetString(14),sourceImageUrl=r.IsDBNull(15)?null:r.GetString(15)});
+        while(await r.ReadAsync(ct)) rows.Add(new {id=r.GetInt64(0),title=r.GetString(1),source=r.GetString(2),author=r.IsDBNull(3)?null:r.GetString(3),status=r.GetString(4),url=r.GetString(5),publishedAt=r.GetDateTime(6),images=r.GetInt32(7),country=r.IsDBNull(8)?null:r.GetString(8).Trim(),category=r.GetString(9),region=r.GetString(10),titleAr=r.IsDBNull(11)?null:r.GetString(11),subject=r.IsDBNull(12)?null:r.GetString(12),aiProvider=r.IsDBNull(13)?null:r.GetString(13),aiProcessedAt=r.IsDBNull(14)?(DateTime?)null:r.GetDateTime(14),rssExcerpt=r.IsDBNull(15)?null:r.GetString(15),sourceImageUrl=r.IsDBNull(16)?null:r.GetString(16)});
         return rows;
     }
     public async Task<List<(long Id,string Title,string Source,string Country,string? Context)>> GetPendingAiBatch(int max,CancellationToken ct)
@@ -576,7 +582,7 @@ sealed class NewsCollector : BackgroundService
                         if(string.IsNullOrEmpty(url)) url=entry.Elements().FirstOrDefault(e=>e.Name.LocalName=="link")?.Attribute("href")?.Value;
                         var rawDate=Get("pubDate")??Get("published")??Get("updated");
                         if(!DateTimeOffset.TryParse(rawDate,CultureInfo.InvariantCulture,DateTimeStyles.AssumeUniversal,out var date)) continue;
-                        if(date<now.AddHours(-1)||date>now.AddMinutes(5)) continue;
+                        if(date<now.AddHours(-24)||date>now.AddMinutes(5)) continue;
                         if(string.IsNullOrWhiteSpace(title)||title.Length>500||!Uri.TryCreate(url,UriKind.Absolute,out var link)||link.Scheme!="https") continue;
                         var author=Get("creator")??Get("author");
                         var rawExcerpt=Get("description")??Get("summary");
