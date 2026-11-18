@@ -66,7 +66,7 @@ app.MapPut("/api/admin/articles/{id:long}", async (HttpRequest request, NewsStor
 {
     if (!Authorized(request)) return Results.Unauthorized();
     if (string.IsNullOrWhiteSpace(edit.TitleAr) || edit.TitleAr.Length > 500 || edit.Subject?.Length > 20000 ||
-        edit.CountryCode?.Length != 2 || !new[] {"general","politics","economy","sports","technology","health","education","arts"}.Contains(edit.Category))
+        edit.CountryCode?.Length != 2 || !new[] {"general","politics","economy","sports","technology","health","education","arts","literature"}.Contains(edit.Category))
         return Results.BadRequest(new { error = "Arabic title, two-letter country and valid category required" });
     var saved = await store.EditArticle(id,edit,ct);
     return saved ? Results.Ok(new { saved=true }) : Results.NotFound();
@@ -323,7 +323,7 @@ CREATE TABLE IF NOT EXISTS news_images (
     }
     public async Task<SiteSettingsInput> SiteSettings(CancellationToken ct)
     {
-        var defaults=new List<SiteCategory>{new("general","الرئيسية","Home","🇪🇬"),new("politics","سياسة","Politics","🌐"),new("economy","اقتصاد","Economy","📊"),new("sports","رياضة","Sports","⚽"),new("technology","تكنولوجيا","Technology","💻"),new("health","صحة","Health","⚕️"),new("education","تعليم","Education","🎓"),new("arts","فن","Arts","🎭")};
+        var defaults=new List<SiteCategory>{new("general","الرئيسية","Home","🇪🇬"),new("politics","سياسة","Politics","🌐"),new("economy","اقتصاد","Economy","📊"),new("sports","رياضة","Sports","⚽"),new("technology","تكنولوجيا","Technology","💻"),new("health","صحة","Health","⚕️"),new("education","تعليم","Education","🎓"),new("arts","فن","Arts","🎭"),new("literature","أدب","Literature","📚")};
         if(!Configured)return new SiteSettingsInput(null,defaults);
         await using var conn=await Open(ct);
         await using var cmd=new NpgsqlCommand("SELECT key,value FROM site_settings WHERE key IN ('logo_url','categories')",conn);
@@ -334,6 +334,7 @@ CREATE TABLE IF NOT EXISTS news_images (
             if(reader.GetString(0)=="logo_url")logo=reader.GetString(1);
             else try{categories=System.Text.Json.JsonSerializer.Deserialize<List<SiteCategory>>(reader.GetString(1));}catch(System.Text.Json.JsonException){}
         }
+        if(categories is {Count:>0}&&!categories.Any(x=>x.Id=="literature"))categories.Add(new("literature","أدب","Literature","📚"));
         return new SiteSettingsInput(logo,categories is {Count:>0}?categories:defaults);
     }
     public async Task SaveSiteSettings(SiteSettingsInput input,CancellationToken ct)
