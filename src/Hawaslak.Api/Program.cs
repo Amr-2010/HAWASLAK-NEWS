@@ -166,6 +166,13 @@ VALUES
 ('DW Germany','DE','https://rss.dw.com/xml/rss-en-all',true,false,'Candidate RSS feed; verify access and republication rights'),
 ('Sky News UK','GB','https://feeds.skynews.com/feeds/rss/home.xml',true,false,'Candidate RSS feed; verify access and republication rights')
 ON CONFLICT(feed_url) DO NOTHING;
+-- Repair previously seeded Egyptian feeds without deleting collected articles.
+UPDATE news_feeds SET feed_url='https://www.youm7.com/rss/SectionRss?SectionID=319',last_error=NULL,last_checked=NULL,enabled=true
+ WHERE name='Youm7 Egypt' AND feed_url='https://www.youm7.com/rss'
+ AND NOT EXISTS(SELECT 1 FROM news_feeds WHERE feed_url='https://www.youm7.com/rss/SectionRss?SectionID=319');
+UPDATE news_feeds SET enabled=false,license_notes=concat_ws(' | ',NULLIF(license_notes,''),'Paused: feed endpoint blocked or invalid; verify official RSS before re-enabling')
+ WHERE name IN ('Al-Ahram Egypt','Ahram Online','Al-Masry Al-Youm')
+ AND (feed_url IN ('https://gate.ahram.org.eg/rss','https://english.ahram.org.eg/rss.aspx','https://www.almasryalyoum.com/rss/'));
 CREATE TABLE IF NOT EXISTS news_items (
  id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
  feed_id bigint NOT NULL REFERENCES news_feeds(id),
