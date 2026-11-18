@@ -29,6 +29,7 @@ sealed class NewsAiWorker : BackgroundService
             if(now<_cooldownUntil) return new {processed=0,error="All providers are cooling down"};
             var items=await _store.GetPendingAiBatch(allowed,ct);
             var completed=0;
+            if(items.Count==0) return new {processed=0,error="No pending articles without an Arabic title are available for AI preparation"};
             foreach (var item in items)
             {
                 _used++;
@@ -43,7 +44,7 @@ sealed class NewsAiWorker : BackgroundService
                 {
                     _logger.LogWarning("AI processing suspended after error: {Message}",ex.Message);
                     _cooldownUntil=DateTime.UtcNow.AddMinutes(30);
-                    return new {processed=completed,error="AI unavailable; retry after cooldown"};
+                    return new {processed=completed,error="AI provider failed; retry after cooldown. Check Render logs for the upstream error"};
                 }
             }
             return new {processed=completed,error=(string?)null};
