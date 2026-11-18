@@ -218,6 +218,24 @@ ALTER TABLE news_items ADD COLUMN IF NOT EXISTS ai_model text;
 ALTER TABLE news_items ADD COLUMN IF NOT EXISTS ai_processed_at timestamptz;
 CREATE INDEX IF NOT EXISTS news_items_country_category ON news_items(country_code,category,original_published_at DESC);
 CREATE INDEX IF NOT EXISTS news_items_recent ON news_items(original_published_at DESC);
+-- International source expansion: publicly documented discovery feeds only.
+-- This is a starter collection, NOT a verified source in every country. Never grant republication rights automatically.
+INSERT INTO news_feeds(name,country_code,feed_url,enabled,auto_publish_allowed,license_notes) VALUES
+('BBC World','GB','https://feeds.bbci.co.uk/news/world/rss.xml',true,false,'Discovery only; publisher rights unverified'),
+('BBC UK','GB','https://feeds.bbci.co.uk/news/uk/rss.xml',true,false,'Discovery only; publisher rights unverified'),
+('Sky News UK','GB','https://feeds.skynews.com/feeds/rss/home.xml',true,false,'Discovery only; publisher rights unverified'),
+('The Independent UK','GB','https://www.independent.co.uk/rss',true,false,'Discovery only; publisher rights unverified'),
+('Politico Europe','BE','https://www.politico.eu/feed/',true,false,'Discovery only; publisher rights unverified'),
+('Le Monde English','FR','https://www.lemonde.fr/en/rss/une.xml',true,false,'Discovery only; publisher rights unverified'),
+('Der Spiegel International','DE','https://www.spiegel.de/international/index.rss',true,false,'Discovery only; publisher rights unverified'),
+('DW World English','DE','https://rss.dw.com/xml/rss-en-all',true,false,'Discovery only; publisher rights unverified'),
+('Euronews','FR','https://www.euronews.com/rss',true,false,'Discovery only; publisher rights unverified'),
+('RTE Ireland','IE','https://www.rte.ie/feeds/rss/?index=/news/',true,false,'Discovery only; publisher rights unverified'),
+('Al Jazeera English Global','QA','https://www.aljazeera.com/xml/rss/all.xml',true,false,'Discovery only; publisher rights unverified'),
+('The Guardian World Edition','GB','https://www.theguardian.com/world/rss',true,false,'Discovery only; publisher rights unverified'),
+('Reuters via Google News','US','https://news.google.com/rss/search?q=when:24h+site:reuters.com&ceid=US:en&hl=en-US&gl=US',true,false,'Google News discovery, NOT a Reuters licensed feed; link only'),
+('AP via Google News','US','https://news.google.com/rss/search?q=when:24h+site:apnews.com&hl=en-US&gl=US&ceid=US:en',true,false,'Google News discovery, NOT an AP licensed feed; link only')
+ON CONFLICT(feed_url) DO NOTHING;
 CREATE TABLE IF NOT EXISTS editorial_features (
  id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
  kind text NOT NULL CHECK(kind IN ('article','special_file')),
