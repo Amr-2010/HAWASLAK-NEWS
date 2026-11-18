@@ -221,9 +221,19 @@ ORDER BY i.original_published_at DESC LIMIT 100", conn);
         if (!Configured) return new { configured=false, feeds=Array.Empty<object>(), total=0, pending=0, published=0 };
         await using var conn=await Open(ct);
         var feeds=new List<object>();
+        var sourceCounts=new Dictionary<long,(long Total,long Pending,long Published,long Rejected)>();
+        await using (var byFeed=new NpgsqlCommand("SELECT feed_id,count(*),count(*) FILTER (WHERE status='pending'),count(*) FILTER (WHERE status='published'),count(*) FILTER (WHERE status='rejected') FROM news_items GROUP BY feed_id",conn))
+        await using (var reader=await byFeed.ExecuteReaderAsync(ct))
+            while(await reader.ReadAsync(ct))
+                sourceCounts[reader.GetInt64(0)]=(reader.GetInt64(1),reader.GetInt64(2),reader.GetInt64(3),reader.GetInt64(4));
         await using (var cmd=new NpgsqlCommand("SELECT id,name,country_code,feed_url,enabled,auto_publish_allowed,license_notes,last_checked,last_error FROM news_feeds ORDER BY id",conn))
         await using (var r=await cmd.ExecuteReaderAsync(ct))
-            while(await r.ReadAsync(ct)) feeds.Add(new {id=r.GetInt64(0),name=r.GetString(1),country=r.GetString(2),url=r.GetString(3),enabled=r.GetBoolean(4),autoPublish=r.GetBoolean(5),license=r.GetString(6),lastChecked=r.IsDBNull(7)?(DateTime?)null:r.GetDateTime(7),error=r.IsDBNull(8)?null:r.GetString(8)});
+            while(await r.ReadAsync(ct))
+            {
+                var id=r.GetInt64(0);
+                sourceCounts.TryGetValue(id,out var counts);
+                feeds.Add(new {id,name=r.GetString(1),country=r.GetString(2),url=r.GetString(3),enabled=r.GetBoolean(4),autoPublish=r.GetBoolean(5),license=r.GetString(6),lastChecked=r.IsDBNull(7)?(DateTime?)null:r.GetDateTime(7),error=r.IsDBNull(8)?null:r.GetString(8),total=counts.Total,pending=counts.Pending,published=counts.Published,rejected=counts.Rejected});
+            }
         await using var count=new NpgsqlCommand("SELECT count(*),count(*) FILTER (WHERE status='pending'),count(*) FILTER (WHERE status='published') FROM news_items",conn);
         await using var cr=await count.ExecuteReaderAsync(ct);
         await cr.ReadAsync(ct);
