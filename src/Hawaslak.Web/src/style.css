@@ -267,3 +267,28 @@ body{background:#f5f7f9;color:#17202c}
 .ticker-expanded{width:100%;padding:8px 14px;background:#fff}
 .front-sidebar-item .news-title-toggle{font-weight:700}
 @media(max-width:600px){.inline-news-detail{font-size:14px;padding:11px}.ticker-expanded{padding:8px}}
+
+/* Mobile editorial layout fixes, 2026-11-18 */
+.story-surface-meta{position:absolute;inset:0 0 auto;z-index:3;display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:12px 14px;pointer-events:none;direction:rtl}
+.story-surface-meta .story-brand-name{display:block;position:static;max-width:52%;color:#18364b;background:#ffffffde;border-radius:6px;padding:5px 8px;font-size:12px;font-weight:800;line-height:1.4;text-align:right}
+.story-surface-meta .story-category{position:static!important;inset:auto!important;max-width:45%;font-size:12px;white-space:normal;text-align:center}
+.lead-story .story-surface-meta .story-brand-name{color:#123348}
+.egypt-editorial .story-graphic{display:none!important}
+.egypt-editorial .story-surface{min-width:0}
+@media(max-width:980px){
+ .newsroom-front{display:flex!important;flex-direction:column!important;gap:12px!important;direction:rtl!important}
+ .front-sidebar{display:block!important;width:100%!important;min-width:0!important;max-width:100%!important;box-sizing:border-box!important}
+ .front-sidebar-item{display:block!important;width:100%!important;min-width:0!important;max-width:100%!important;box-sizing:border-box!important;overflow-wrap:anywhere;word-break:normal}
+ .front-sidebar-item .news-title-toggle{width:100%!important;min-width:0!important;overflow-wrap:anywhere;white-space:normal!important}
+ .front-sidebar-item strong{display:block!important;max-width:100%;overflow-wrap:anywhere;white-space:normal!important;-webkit-line-clamp:unset!important}
+ .front-lead{width:100%!important;min-width:0!important}
+ .front-lead-bottom{grid-template-columns:1fr!important}
+}
+@media(max-width:650px){
+ .news-main.egypt-editorial{overflow-x:clip}
+ .topic-shortcuts{margin:12px 0!important}
+ .front-sidebar-item{padding:12px 14px!important}
+ .front-sidebar-item .inline-news-detail{width:100%;box-sizing:border-box}
+ .story-surface-meta{padding:10px}
+ .story-surface-meta .story-brand-name{font-size:11px}
+}
