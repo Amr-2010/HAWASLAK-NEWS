@@ -95,7 +95,7 @@ app.MapGet("/api/admin/features", async (HttpRequest request, NewsStore store, C
 app.MapPost("/api/admin/features", async (HttpRequest request, NewsStore store, FeatureInput input, CancellationToken ct) =>
 {
     if (!Authorized(request)) return Results.Unauthorized();
-    if (string.IsNullOrWhiteSpace(input.Title) || string.IsNullOrWhiteSpace(input.Body) || input.Title.Length>240 || input.Body.Length>40000 || !new[]{"article","special_file"}.Contains(input.Kind))
+    if (string.IsNullOrWhiteSpace(input.Title) || string.IsNullOrWhiteSpace(input.Body) || input.Title.Length>240 || input.Body.Length>40000 || !new[]{"article","special_file","news"}.Contains(input.Kind))
         return Results.BadRequest(new {error="Valid title, body and kind are required"});
     return Results.Ok(new {id=await store.SaveFeature(input,ct)});
 });
@@ -238,11 +238,13 @@ INSERT INTO news_feeds(name,country_code,feed_url,enabled,auto_publish_allowed,l
 ON CONFLICT(feed_url) DO NOTHING;
 CREATE TABLE IF NOT EXISTS editorial_features (
  id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
- kind text NOT NULL CHECK(kind IN ('article','special_file')),
+ kind text NOT NULL CHECK(kind IN ('article','special_file','news')),
  title text NOT NULL,body text NOT NULL,excerpt text,cover_url text,
  published boolean NOT NULL DEFAULT false,created_at timestamptz NOT NULL DEFAULT now(),
  updated_at timestamptz NOT NULL DEFAULT now()
 );
+ALTER TABLE editorial_features DROP CONSTRAINT IF EXISTS editorial_features_kind_check;
+ALTER TABLE editorial_features ADD CONSTRAINT editorial_features_kind_check CHECK(kind IN ('article','special_file','news'));
 CREATE TABLE IF NOT EXISTS news_images (
  id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
  item_id bigint NOT NULL REFERENCES news_items(id) ON DELETE CASCADE,
