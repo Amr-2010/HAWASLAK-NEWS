@@ -191,7 +191,7 @@ body{background:#f5f7f9;color:#17202c}
 .category-nav::-webkit-scrollbar{display:none}
 .category-nav button{flex:0 0 auto;white-space:nowrap}
 .regional-track{min-width:0;overflow:hidden!important;direction:ltr}
-.regional-marquee{animation:regional-news-scroll 28s linear infinite!important;display:flex;width:max-content;min-width:0;transform:translateZ(0)}
+.regional-marquee{animation:regional-news-scroll 20s linear infinite!important;display:flex;width:max-content;min-width:0;transform:translateZ(0)}
 .regional-marquee-group{flex:0 0 auto}
 .regional-marquee-group a{flex-shrink:0}
 @media(hover:none){.regional-strip:hover .regional-marquee{animation-play-state:running}}
