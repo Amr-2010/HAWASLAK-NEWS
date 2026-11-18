@@ -550,6 +550,11 @@ INSERT INTO news_feeds(name,country_code,feed_url,enabled,auto_publish_allowed,l
 ('Youm7 Technology Verified','EG','https://www.youm7.com/rss/SectionRss?SectionID=328',true,false,'Publisher feed content inspected Nov 2026; editorial review'),
 ('Youm7 Governorates Verified','EG','https://www.youm7.com/rss/SectionRss?SectionID=296',true,false,'Publisher feed content inspected Nov 2026; editorial review')
 ON CONFLICT(feed_url) DO NOTHING;
+-- Egyptian section feeds observed serving current entries in November 2026.
+INSERT INTO news_feeds(name,country_code,feed_url,enabled,auto_publish_allowed,license_notes) VALUES
+('Youm7 Technology','EG','https://www.youm7.com/rss/SectionRss?SectionID=328',true,false,'Current entries confirmed by feed reader and search; editorial approval required'),
+('Al Shorouk Egypt News','EG','https://www.shorouknews.com/egypt/rss',true,false,'Publisher lists section RSS; third-party fetch returns RSS content type; editorial approval required')
+ON CONFLICT(feed_url) DO NOTHING;
 CREATE TABLE IF NOT EXISTS editorial_features (
  id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
  kind text NOT NULL CHECK(kind IN ('article','special_file','news')),
@@ -824,6 +829,8 @@ VALUES(@n,@c,@u,@a,@l) ON CONFLICT(feed_url) DO UPDATE SET name=EXCLUDED.name,co
         if(url.Contains("/category/politics-en/",StringComparison.OrdinalIgnoreCase))return "politics";
         if(url.Contains("/category/economics-en/",StringComparison.OrdinalIgnoreCase))return "economy";
         if(url.Contains("/category/culture/",StringComparison.OrdinalIgnoreCase)||url.Contains("SectionID=94",StringComparison.OrdinalIgnoreCase))return "literature";
+        if(url.Contains("SectionID=328",StringComparison.OrdinalIgnoreCase))return "technology";
+        if(url.Contains("SectionID=298",StringComparison.OrdinalIgnoreCase)||url.Contains("SectionID=13",StringComparison.OrdinalIgnoreCase))return "sports";
         if(url.Contains("/category/investigations-en/",StringComparison.OrdinalIgnoreCase))return "crime";
         return null;
     }
