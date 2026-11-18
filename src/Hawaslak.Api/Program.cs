@@ -270,7 +270,9 @@ ORDER BY i.original_published_at DESC LIMIT 100", conn);
         var rows=new List<(long,string,string,string,string?)>();
         await using var conn=await Open(ct);
         await using var cmd=new NpgsqlCommand(@"SELECT i.id,i.title,f.name,COALESCE(i.country_code,f.country_code),i.rss_excerpt FROM news_items i JOIN news_feeds f ON f.id=i.feed_id
-WHERE i.status='pending' AND i.ai_processed_at IS NULL AND (i.title_ar IS NULL OR i.title_ar='')
+WHERE i.status='pending'
+AND (NULLIF(btrim(i.title_ar),'') IS NULL OR NULLIF(btrim(i.subject),'') IS NULL)
+AND (i.ai_processed_at IS NULL OR i.ai_processed_at < now() - interval '1 day')
 ORDER BY i.imported_at LIMIT @max",conn);
         cmd.Parameters.AddWithValue("max",Math.Clamp(max,1,10));
         await using var reader=await cmd.ExecuteReaderAsync(ct);
@@ -288,7 +290,7 @@ ORDER BY i.imported_at LIMIT @max",conn);
     public async Task SaveAiDraft(long id,ArabicNewsDraft draft,CancellationToken ct)
     {
         await using var conn=await Open(ct);
-        await using var cmd=new NpgsqlCommand(@"UPDATE news_items SET title_ar=@title,subject=@summary,category=@category,country_code=@country,ai_provider=@provider,ai_model=@model,ai_processed_at=now() WHERE id=@id AND status='pending'",conn);
+        await using var cmd=new NpgsqlCommand(@"UPDATE news_items SET title_ar=COALESCE(NULLIF(btrim(title_ar),''),@title),subject=COALESCE(NULLIF(btrim(subject),''),@summary),category=@category,country_code=@country,ai_provider=@provider,ai_model=@model,ai_processed_at=now() WHERE id=@id AND status='pending'",conn);
         cmd.Parameters.AddWithValue("id",id);
         cmd.Parameters.AddWithValue("title",draft.TitleAr);
         cmd.Parameters.AddWithValue("summary",draft.SummaryAr);
