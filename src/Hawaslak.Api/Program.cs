@@ -832,6 +832,7 @@ VALUES(@n,@c,@u,@a,@l) ON CONFLICT(feed_url) DO UPDATE SET name=EXCLUDED.name,co
         await using var cmd=new NpgsqlCommand("SELECT feed_url FROM news_feeds WHERE id=@id",conn);
         cmd.Parameters.AddWithValue("id",feedId);
         var url=(await cmd.ExecuteScalarAsync(ct))?.ToString()??"";
+        if(url.Contains("feeds.bbci.co.uk/sport/",StringComparison.OrdinalIgnoreCase)||url.Contains("skysports.com/rss/",StringComparison.OrdinalIgnoreCase)||url.Contains("espn.com/espn/rss/",StringComparison.OrdinalIgnoreCase))return "sports";
         if(url.Contains("SectionID=328",StringComparison.OrdinalIgnoreCase))return "technology";
         if(url.Contains("SectionID=298",StringComparison.OrdinalIgnoreCase)||url.Contains("rss/13.aspx",StringComparison.OrdinalIgnoreCase))return "sports";
         if(url.Contains("SectionID=245",StringComparison.OrdinalIgnoreCase)||url.Contains("rss/4.aspx",StringComparison.OrdinalIgnoreCase))return "health";
