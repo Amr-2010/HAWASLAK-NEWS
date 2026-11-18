@@ -319,17 +319,18 @@ ORDER BY i.imported_at LIMIT @max",conn);
     public async Task<object> PublishReady(CancellationToken ct)
     {
         await using var conn=await Open(ct);
-        await using var cmd=new NpgsqlCommand(@"WITH eligible AS (
- SELECT i.id FROM news_items i JOIN news_feeds f ON f.id=i.feed_id
- WHERE i.status='pending' AND NULLIF(btrim(i.title_ar),'') IS NOT NULL
- AND f.auto_publish_allowed=true AND NULLIF(btrim(f.license_notes),'') IS NOT NULL
-)
-UPDATE news_items i SET status='published',published_at=now()
-FROM eligible e WHERE i.id=e.id",conn);
+        // Admin-confirmed batch publication follows the same readiness rule as individual publication.
+        // Source links and attribution remain attached to every item; no full publisher article is copied.
+        await using var cmd=new NpgsqlCommand(@"UPDATE news_items SET status='published',published_at=COALESCE(published_at,now())
+WHERE status='pending' AND NULLIF(btrim(title_ar),'') IS NOT NULL
+AND NULLIF(btrim(original_url),'') IS NOT NULL",conn);
         var published=await cmd.ExecuteNonQueryAsync(ct);
-        await using var pending=new NpgsqlCommand("SELECT count(*) FROM news_items WHERE status='pending'",conn);
-        var remaining=(long)(await pending.ExecuteScalarAsync(ct)??0L);
-        return new {published,remaining,policy="Only Arabic-ready articles from sources explicitly marked licensed for automatic publication"};
+        await using var count=new NpgsqlCommand(@"SELECT count(*) FILTER (WHERE status='pending'),
+count(*) FILTER (WHERE status='pending' AND NULLIF(btrim(title_ar),'') IS NOT NULL AND NULLIF(btrim(original_url),'') IS NOT NULL)
+FROM news_items",conn);
+        await using var r=await count.ExecuteReaderAsync(ct);
+        await r.ReadAsync(ct);
+        return new {published,remaining=r.GetInt64(0),ready=r.GetInt64(1),policy="Explicit admin confirmation publishes Arabic-titled summaries linking to the original publisher; do not reproduce unlicensed full articles or images"};
     }
     public async Task<bool> DeleteArticle(long id,CancellationToken ct)
     {
