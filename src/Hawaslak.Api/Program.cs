@@ -92,7 +92,11 @@ app.MapPost("/api/admin/articles/{id:long}/ai-prepare", async (HttpRequest reque
 app.MapGet("/api/site-settings", async (NewsStore store,CancellationToken ct)=>Results.Ok(await store.SiteSettings(ct)));
 app.MapPut("/api/admin/site-settings", async (HttpRequest request,NewsStore store,SiteSettingsInput input,CancellationToken ct)=>{
  if(!Authorized(request))return Results.Unauthorized();
- if(!string.IsNullOrWhiteSpace(input.LogoUrl)&&(!Uri.TryCreate(input.LogoUrl,UriKind.Absolute,out var u)||u.Scheme!="https"||input.LogoUrl.Length>1000))return Results.BadRequest(new {error="Logo must be a valid HTTPS image URL"});
+ if(!string.IsNullOrWhiteSpace(input.LogoUrl)){
+ var isImageData=System.Text.RegularExpressions.Regex.IsMatch(input.LogoUrl,@"^data:image/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$",System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+ var isHttps=Uri.TryCreate(input.LogoUrl,UriKind.Absolute,out var logoUri)&&logoUri.Scheme=="https"&&input.LogoUrl.Length<=1000;
+ if(!isHttps&&!(isImageData&&input.LogoUrl.Length<=300000))return Results.BadRequest(new {error="Logo must be HTTPS URL or PNG/JPEG/WebP image up to 220 KB"});
+}
  if(input.Categories is null||input.Categories.Count>24||input.Categories.Any(x=>string.IsNullOrWhiteSpace(x.Id)||!System.Text.RegularExpressions.Regex.IsMatch(x.Id,@"^[a-z][a-z0-9_-]{1,30}$")||string.IsNullOrWhiteSpace(x.Ar)||x.Ar.Length>60||string.IsNullOrWhiteSpace(x.En)||x.En.Length>60)||input.Categories.Select(x=>x.Id).Distinct().Count()!=input.Categories.Count)return Results.BadRequest(new {error="Invalid categories"});
  await store.SaveSiteSettings(input,ct);return Results.Ok(new {saved=true});
 });
@@ -256,6 +260,19 @@ INSERT INTO news_feeds(name,country_code,feed_url,enabled,auto_publish_allowed,l
 ('Youm7 Egyptian Reports','EG','https://www.youm7.com/rss/SectionRss?SectionID=97',true,false,'RSS discovery; source copyright retained'),
 ('Al Masry Al Youm Egypt','EG','https://www.almasryalyoum.com/rss/rssfeeds?sectionId=3',true,false,'RSS discovery; source copyright retained'),
 ('Masrawy Egypt','EG','https://www.masrawy.com/rss/feed/35/%D8%A3%D8%AE%D8%A8%D8%A7%D8%B1%20%D9%85%D8%B5%D8%B1-%D8%B3%D9%8A%D8%A7%D8%B3%D8%A9',true,false,'RSS discovery; source copyright retained')
+ON CONFLICT(feed_url) DO NOTHING;
+-- Additional Egyptian specialist RSS discovery candidates; check accessibility and permissions in source diagnostics.
+INSERT INTO news_feeds(name,country_code,feed_url,enabled,auto_publish_allowed,license_notes) VALUES
+('FilGoal Sports','EG','https://www.filgoal.com/rss',true,false,'Egyptian sports candidate; verify feed and publisher permissions'),
+('Yallakora Sports','EG','https://www.yallakora.com/rss',true,false,'Egyptian sports candidate; verify feed and publisher permissions'),
+('Kooora Egyptian Sports','EG','https://www.kooora.com/rss',true,false,'Sports candidate; verify country attribution, feed and permissions'),
+('Masrawy Arts','EG','https://www.masrawy.com/rss/feed/19/%D9%81%D9%86%D9%88%D9%86',true,false,'Egyptian arts candidate; verify feed and publisher permissions'),
+('Youm7 Arts','EG','https://www.youm7.com/rss/SectionRss?SectionID=48',true,false,'Egyptian arts candidate; verify section feed and publisher permissions'),
+('Youm7 Health','EG','https://www.youm7.com/rss/SectionRss?SectionID=245',true,false,'Egyptian health candidate; verify section feed and publisher permissions'),
+('Masrawy Health','EG','https://www.masrawy.com/rss/feed/18/%D8%B5%D8%AD%D8%A9',true,false,'Egyptian health candidate; verify feed and publisher permissions'),
+('Al Ahram Sports','EG','https://gate.ahram.org.eg/rss/13.aspx',true,false,'Egyptian sports candidate; verify feed and publisher permissions'),
+('Al Ahram Arts','EG','https://gate.ahram.org.eg/rss/7.aspx',true,false,'Egyptian arts candidate; verify feed and publisher permissions'),
+('Al Ahram Health','EG','https://gate.ahram.org.eg/rss/4.aspx',true,false,'Egyptian health candidate; verify feed and publisher permissions')
 ON CONFLICT(feed_url) DO NOTHING;
 CREATE TABLE IF NOT EXISTS editorial_features (
  id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
