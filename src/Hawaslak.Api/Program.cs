@@ -693,7 +693,7 @@ ORDER BY i.original_published_at DESC LIMIT 300", conn);
 WHERE i.status IN ('pending','published')
 AND (NULLIF(btrim(i.title_ar),'') IS NULL OR NULLIF(btrim(i.subject),'') IS NULL)
 AND (i.ai_processed_at IS NULL OR i.ai_processed_at < now() - interval '1 day')
-ORDER BY CASE WHEN NULLIF(btrim(i.title_ar),'') IS NULL THEN 0 ELSE 1 END, i.imported_at DESC LIMIT @max",conn);
+ORDER BY CASE WHEN i.status='published' AND NULLIF(btrim(i.subject),'') IS NULL THEN 0 WHEN NULLIF(btrim(i.title_ar),'') IS NULL THEN 1 ELSE 2 END, i.imported_at DESC LIMIT @max",conn);
         cmd.Parameters.AddWithValue("max",Math.Clamp(max,1,10));
         await using var reader=await cmd.ExecuteReaderAsync(ct);
         while(await reader.ReadAsync(ct)) rows.Add((reader.GetInt64(0),reader.GetString(1),reader.GetString(2),reader.GetString(3).Trim(),reader.IsDBNull(4)?null:reader.GetString(4)));
