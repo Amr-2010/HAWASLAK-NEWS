@@ -101,3 +101,12 @@
 .regional-strip:hover .regional-marquee,.regional-strip:focus-within .regional-marquee{animation-play-state:paused}
 @keyframes regional-news-scroll{from{transform:translateX(0)}to{transform:translateX(-50%)}}
 @media(prefers-reduced-motion:reduce){.regional-marquee{animation:none}.regional-track{overflow-x:auto}}
+
+/* Readable two-line headlines in both continuously scrolling ribbons */
+.regional-strip{min-height:88px}
+.regional-track{min-width:0}
+.regional-marquee-group a{flex:0 0 350px;min-height:88px;padding:12px 19px;gap:5px;align-items:stretch;overflow:hidden}
+.regional-marquee-group a span{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;white-space:normal;overflow:hidden;text-overflow:ellipsis;overflow-wrap:anywhere;word-break:normal;font-size:14px;line-height:1.65;font-weight:750;max-height:3.3em;text-align:right}
+.regional-marquee-group a small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:11px;line-height:1.4;text-align:right}
+.regional-label{line-height:1.5;text-align:center}
+@media(max-width:600px){.regional-marquee-group a{flex-basis:265px;padding:11px 13px}.regional-marquee-group a span{font-size:13px}}
