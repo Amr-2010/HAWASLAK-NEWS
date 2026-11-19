@@ -775,12 +775,16 @@ ORDER BY i.original_published_at DESC LIMIT 300", conn);
     }
     public async Task<object> PublishedNewsCounts(CancellationToken ct)
     {
-        if(!Configured)return new {lastWeek=0L,totalPublished=0L};
+        if(!Configured)return new {lastWeek=0L,totalPublished=0L,egyptian=0L,arab=0L,world=0L};
         await using var conn=await Open(ct);
-        await using var cmd=new NpgsqlCommand("SELECT count(*) FILTER (WHERE original_published_at >= now()-interval '7 days'),count(*) FROM news_items WHERE status='published'",conn);
+        await using var cmd=new NpgsqlCommand(@"SELECT count(*) FILTER (WHERE original_published_at >= now()-interval '7 days'),count(*),
+count(*) FILTER (WHERE original_published_at >= now()-interval '7 days' AND country_code='EG'),
+count(*) FILTER (WHERE original_published_at >= now()-interval '7 days' AND country_code IN ('SA','AE','QA','KW','BH','OM','JO','LB','SY','IQ','YE','PS','MA','DZ','TN','LY','SD','MR','SO','DJ','KM')),
+count(*) FILTER (WHERE original_published_at >= now()-interval '7 days' AND (country_code IS NULL OR country_code NOT IN ('EG','SA','AE','QA','KW','BH','OM','JO','LB','SY','IQ','YE','PS','MA','DZ','TN','LY','SD','MR','SO','DJ','KM')))
+FROM news_items WHERE status='published'",conn);
         await using var r=await cmd.ExecuteReaderAsync(ct);
-        if(!await r.ReadAsync(ct))return new {lastWeek=0L,totalPublished=0L};
-        return new {lastWeek=r.GetInt64(0),totalPublished=r.GetInt64(1)};
+        if(!await r.ReadAsync(ct))return new {lastWeek=0L,totalPublished=0L,egyptian=0L,arab=0L,world=0L};
+        return new {lastWeek=r.GetInt64(0),totalPublished=r.GetInt64(1),egyptian=r.GetInt64(2),arab=r.GetInt64(3),world=r.GetInt64(4)};
     }
     public async Task<object> NewsFilters(CancellationToken ct)
     {
