@@ -892,8 +892,11 @@ VALUES(@f,@t,@titleAr,@s,@u,@a,@p,@status,@published,(SELECT country_code FROM n
             cmd.Parameters.AddWithValue("category", feedCategory??Classify(item.Title));
             cmd.Parameters.AddWithValue("excerpt",(object?)item.Excerpt??DBNull.Value);
             cmd.Parameters.AddWithValue("image",(object?)item.ImageUrl??DBNull.Value);
-            cmd.Parameters.AddWithValue("status",autoPublish?"published":"pending");
-            cmd.Parameters.AddWithValue("published",autoPublish?DateTime.UtcNow:DBNull.Value);
+            // Automatically publish Arabic-language source headlines only, with a valid HTTPS publisher link.
+            // Foreign-language headlines remain pending for editorial/AI preparation.
+            var publishArabic=LooksArabic(item.Title)&&Uri.TryCreate(item.Url,UriKind.Absolute,out var sourceUri)&&sourceUri.Scheme==Uri.UriSchemeHttps;
+            cmd.Parameters.AddWithValue("status",publishArabic?"published":"pending");
+            cmd.Parameters.AddWithValue("published",publishArabic?DateTime.UtcNow:DBNull.Value);
             total+=await cmd.ExecuteNonQueryAsync(ct);
         }
         return total;
