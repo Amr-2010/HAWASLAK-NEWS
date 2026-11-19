@@ -95,11 +95,11 @@
 
 /* Seamless continuous regional headlines ticker */
 .regional-track{overflow:hidden;scroll-snap-type:none;direction:ltr;align-items:center}
-.regional-marquee{display:flex;width:max-content;min-width:100%;animation:regional-news-scroll 70s linear infinite;will-change:transform}
+.regional-marquee{display:flex;width:max-content;min-width:100%;animation:regional-news-scroll-reverse 70s linear infinite;will-change:transform}
 .regional-marquee-group{display:flex;flex:0 0 auto;align-items:stretch}
 .regional-marquee-group a{display:flex;flex:0 0 300px;direction:rtl;scroll-snap-align:none;align-items:flex-start;justify-content:center;box-sizing:border-box}
 .regional-strip:hover .regional-marquee,.regional-strip:focus-within .regional-marquee{animation-play-state:paused}
-@keyframes regional-news-scroll{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+@keyframes regional-news-scroll-reverse{from{transform:translateX(-50%)}to{transform:translateX(0)}}
 @media(prefers-reduced-motion:reduce){.regional-marquee{animation:none}.regional-track{overflow-x:auto}}
 
 /* Readable two-line headlines in both continuously scrolling ribbons */
