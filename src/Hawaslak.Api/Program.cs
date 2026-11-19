@@ -17,6 +17,7 @@ var app = builder.Build();
 app.UseDefaultFiles();
 app.UseStaticFiles();
 app.MapGet("/health", () => Results.Ok(new { status = "ok", app = "HAWASLAK NEWS" }));
+app.MapGet("/api/news/counts", async (NewsStore store,CancellationToken ct)=>Results.Ok(await store.PublishedNewsCounts(ct)));
 app.MapGet("/api/news/filters", async (NewsStore store,CancellationToken ct)=>Results.Ok(await store.NewsFilters(ct)));
 app.MapGet("/api/news", async (NewsStore store, string? country, string? category, string? region, string? source, string? q, int? page, int? pageSize, CancellationToken ct) => Results.Ok(await store.NewsPage(country,category,region,source,q,page??1,pageSize??40,ct)));
 app.MapPost("/api/admin/login", async (AdminLogin input, NewsStore store, CancellationToken ct) =>
@@ -771,6 +772,15 @@ ORDER BY i.original_published_at DESC LIMIT 300", conn);
         var rows = new List<object>();
         while (await r.ReadAsync(ct)) rows.Add(new { id=r.GetInt64(0), title=r.GetString(1), subject=r.IsDBNull(2)?null:r.GetString(2), source=r.GetString(3), url=r.GetString(4), author=r.IsDBNull(5)?null:r.GetString(5), publishedAt=r.GetDateTime(6), imageCount=r.GetInt32(7), country=r.IsDBNull(8)?null:r.GetString(8).Trim(),category=r.GetString(9),region=r.GetString(10),imageUrl=r.IsDBNull(11)?null:r.GetString(11) });
         return rows;
+    }
+    public async Task<object> PublishedNewsCounts(CancellationToken ct)
+    {
+        if(!Configured)return new {lastWeek=0L,totalPublished=0L};
+        await using var conn=await Open(ct);
+        await using var cmd=new NpgsqlCommand("SELECT count(*) FILTER (WHERE original_published_at >= now()-interval '7 days'),count(*) FROM news_items WHERE status='published'",conn);
+        await using var r=await cmd.ExecuteReaderAsync(ct);
+        if(!await r.ReadAsync(ct))return new {lastWeek=0L,totalPublished=0L};
+        return new {lastWeek=r.GetInt64(0),totalPublished=r.GetInt64(1)};
     }
     public async Task<object> NewsFilters(CancellationToken ct)
     {
