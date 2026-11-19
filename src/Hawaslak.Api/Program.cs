@@ -18,6 +18,25 @@ app.UseDefaultFiles();
 app.UseStaticFiles();
 app.MapGet("/health", () => Results.Ok(new { status = "ok", app = "HAWASLAK NEWS" }));
 app.MapGet("/api/news", async (NewsStore store, string? country, string? category, CancellationToken ct) => Results.Ok(await store.News(country, category, ct)));
+app.MapPost("/api/admin/login", async (AdminLogin input, NewsStore store, CancellationToken ct) =>
+{
+    if(string.IsNullOrWhiteSpace(input.Username)||string.IsNullOrWhiteSpace(input.Password))return Results.Unauthorized();
+    var root=Environment.GetEnvironmentVariable("ADMIN_PASSWORD");
+    var isRoot=input.Username.Equals("admin",StringComparison.OrdinalIgnoreCase)&&!string.IsNullOrEmpty(root)&&SecureEquals(input.Password,root);
+    if(!isRoot&&!await store.CheckAdmin(input.Username,input.Password,ct))return Results.Unauthorized();
+    var user=isRoot?"admin":input.Username.Trim().ToLowerInvariant();
+    return Results.Ok(new {username=user,superAdmin=isRoot,token=IssueAdminToken(user)});
+});
+app.MapGet("/api/admin/users", async (HttpRequest request,NewsStore store,CancellationToken ct) =>
+    IsSuperAdmin(request)?Results.Ok(await store.AdminUsers(ct)):Results.Unauthorized());
+app.MapPost("/api/admin/users", async (HttpRequest request,NewAdmin input,NewsStore store,CancellationToken ct) =>
+{
+    if(!IsSuperAdmin(request))return Results.Unauthorized();
+    if(input.Username.Trim().Length<3||input.Password.Length<12||input.Username.Equals("admin",StringComparison.OrdinalIgnoreCase))
+        return Results.BadRequest(new {error="Username must be at least 3 characters and password at least 12 characters"});
+    await store.CreateAdmin(input.Username.Trim().ToLowerInvariant(),input.Password,ct);
+    return Results.Ok(new {created=true});
+});
 app.MapGet("/api/admin/status", async (HttpRequest request, NewsStore store, CancellationToken ct) =>
     Authorized(request) ? Results.Ok(await store.Status(ct)) : Results.Unauthorized());
 app.MapGet("/api/admin/articles", async (HttpRequest request, NewsStore store, CancellationToken ct) =>
@@ -150,13 +169,33 @@ app.MapDelete("/api/admin/features/{id:long}", async (HttpRequest request, NewsS
 app.MapFallbackToFile("index.html");
 app.Run();
 
-bool Authorized(HttpRequest request)
+bool SecureEquals(string a,string b)=>CryptographicOperations.FixedTimeEquals(SHA256.HashData(Encoding.UTF8.GetBytes(a)),SHA256.HashData(Encoding.UTF8.GetBytes(b)));
+string IssueAdminToken(string username)
 {
-    var secret = Environment.GetEnvironmentVariable("ADMIN_PASSWORD");
-    if (string.IsNullOrWhiteSpace(secret)) return false;
-    var submitted = request.Headers["X-Admin-Password"].ToString();
-    return submitted.Length == secret.Length && CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(submitted), Encoding.UTF8.GetBytes(secret));
+    var expiry=DateTimeOffset.UtcNow.AddHours(12).ToUnixTimeSeconds();
+    var payload=Convert.ToBase64String(Encoding.UTF8.GetBytes(username+"|"+expiry));
+    var key=Environment.GetEnvironmentVariable("ADMIN_PASSWORD")??"";
+    var signature=Convert.ToHexString(HMACSHA256.HashData(Encoding.UTF8.GetBytes(key),Encoding.UTF8.GetBytes(payload)));
+    return payload+"."+signature;
 }
+string? SessionUser(HttpRequest request)
+{
+    var token=request.Headers.Authorization.ToString();
+    if(!token.StartsWith("Bearer ",StringComparison.OrdinalIgnoreCase))return null;
+    var parts=token[7..].Split('.');
+    if(parts.Length!=2||string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("ADMIN_PASSWORD")))return null;
+    var signature=Convert.ToHexString(HMACSHA256.HashData(Encoding.UTF8.GetBytes(Environment.GetEnvironmentVariable("ADMIN_PASSWORD")!),Encoding.UTF8.GetBytes(parts[0])));
+    if(!SecureEquals(signature,parts[1]))return null;
+    try{
+        var values=Encoding.UTF8.GetString(Convert.FromBase64String(parts[0])).Split('|');
+        if(values.Length!=2||!long.TryParse(values[1],out var expiry)||DateTimeOffset.UtcNow.ToUnixTimeSeconds()>expiry)return null;
+        return values[0];
+    }catch{return null;}
+}
+bool IsSuperAdmin(HttpRequest request)=>SessionUser(request)=="admin";
+bool Authorized(HttpRequest request)=>SessionUser(request)!=null;
+record AdminLogin(string Username,string Password);
+record NewAdmin(string Username,string Password);
 record SiteCategory(string Id,string Ar,string En,string Icon);
 record SiteSettingsInput(string? LogoUrl,List<SiteCategory> Categories,string? BannerTitle=null,string? BannerSubtitle=null,string? BannerImageUrl=null,string? BannerLink=null,string? BannerButtonText=null);
 record FeatureInput(long? Id,string Kind,string Title,string Body,string? Excerpt,string? CoverUrl,bool Published);
@@ -168,6 +207,37 @@ record FeedItem(string Title, string Url, string? Author, DateTimeOffset Publish
 
 sealed class NewsStore
 {
+    public async Task<bool> CheckAdmin(string username,string password,CancellationToken ct)
+    {
+        await using var conn=await Open(ct);
+        await using var cmd=new NpgsqlCommand("SELECT salt,password_hash FROM news_admin_users WHERE username=@u AND enabled=true",conn);
+        cmd.Parameters.AddWithValue("u",username.Trim().ToLowerInvariant());
+        await using var reader=await cmd.ExecuteReaderAsync(ct);
+        if(!await reader.ReadAsync(ct))return false;
+        var salt=(byte[])reader[0];var hash=(byte[])reader[1];
+        var candidate=Rfc2898DeriveBytes.Pbkdf2(password,salt,210000,HashAlgorithmName.SHA256,32);
+        return CryptographicOperations.FixedTimeEquals(hash,candidate);
+    }
+    public async Task<object> AdminUsers(CancellationToken ct)
+    {
+        await using var conn=await Open(ct);
+        var users=new List<object>();
+        await using var cmd=new NpgsqlCommand("SELECT username,enabled,created_at FROM news_admin_users ORDER BY created_at DESC",conn);
+        await using var r=await cmd.ExecuteReaderAsync(ct);
+        while(await r.ReadAsync(ct))users.Add(new {username=r.GetString(0),enabled=r.GetBoolean(1),createdAt=r.GetDateTime(2)});
+        return users;
+    }
+    public async Task CreateAdmin(string username,string password,CancellationToken ct)
+    {
+        await using var conn=await Open(ct);
+        var salt=RandomNumberGenerator.GetBytes(16);
+        var hash=Rfc2898DeriveBytes.Pbkdf2(password,salt,210000,HashAlgorithmName.SHA256,32);
+        await using var cmd=new NpgsqlCommand("INSERT INTO news_admin_users(username,salt,password_hash) VALUES(@u,@s,@h)",conn);
+        cmd.Parameters.AddWithValue("u",username);
+        cmd.Parameters.AddWithValue("s",salt);
+        cmd.Parameters.AddWithValue("h",hash);
+        await cmd.ExecuteNonQueryAsync(ct);
+    }
     private readonly string? _db = Environment.GetEnvironmentVariable("DATABASE_URL");
     private readonly SemaphoreSlim _setup = new(1, 1);
     private bool _ready;
@@ -200,6 +270,7 @@ sealed class NewsStore
                 if (!_ready)
                 {
                     await using var cmd = new NpgsqlCommand(@"
+CREATE TABLE IF NOT EXISTS news_admin_users (username text PRIMARY KEY,salt bytea NOT NULL,password_hash bytea NOT NULL,enabled boolean NOT NULL DEFAULT true,created_at timestamptz NOT NULL DEFAULT now());
 CREATE TABLE IF NOT EXISTS news_feeds (
  id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
  name text NOT NULL, country_code char(2) NOT NULL, feed_url text NOT NULL UNIQUE,
