@@ -33,8 +33,8 @@ public sealed class NewsAiService
             try
             {
                 var raw=await Call(p.Name,p.Model!,prompt,ct);
-                var match=Regex.Match(raw,@"\{[\s\S]*\}");
-                if(!match.Success) throw new FormatException("AI did not return JSON");
+                var match=Regex.Match(raw,@"\\{[\\s\\S]*?\\}");
+                if(!match.Success) throw new FormatException("AI response contained no JSON object (length "+raw.Length+")");
                 using var doc=JsonDocument.Parse(match.Value);
                 var root=doc.RootElement;
                 static string Val(JsonElement el,string prop) => el.TryGetProperty(prop,out var v)&&v.ValueKind==JsonValueKind.String?v.GetString()?.Trim()??"":"";
@@ -64,7 +64,7 @@ public sealed class NewsAiService
         {
             url="https://api.cloudflare.com/client/v4/accounts/"+Uri.EscapeDataString(Env("CLOUDFLARE_ACCOUNT_ID"))+"/ai/run/"+model;
             key=Env("CLOUDFLARE_API_TOKEN");
-            payload=new {messages=new[]{new {role="user",content=prompt}},max_tokens=1100};
+            payload=new {messages=new[]{new {role="system",content="Return exactly one valid JSON object with keys title_ar, summary_ar, category, country_code. No markdown or explanation."},new {role="user",content=prompt}},max_tokens=1800,temperature=0.1,response_format=new {type="json_object"}};
         }
         else
         {
