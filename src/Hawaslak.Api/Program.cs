@@ -578,6 +578,19 @@ INSERT INTO news_feeds(name,country_code,feed_url,enabled,auto_publish_allowed,l
 ('Our Culture Mag','GB','https://ourculturemag.com/feed',false,false,'Feedspot culture RSS directory; verify feed response on Render before enabling'),
 ('The Guardian Culture','GB','https://www.theguardian.com/us/culture/rss',false,false,'Feedspot culture RSS directory; verify feed response on Render before enabling')
 ON CONFLICT(feed_url) DO NOTHING;
+-- Egyptian news RSS candidates sourced from Feedspot; disabled until live XML validation.
+INSERT INTO news_feeds(name,country_code,feed_url,enabled,auto_publish_allowed,license_notes) VALUES
+('Egypt Independent','EG','https://www.egyptindependent.com/feed/',false,false,'Listed by Feedspot Egyptian news RSS directory; must verify XML and publishing rights before activation'),
+('Daily News Egypt','EG','https://www.dailynewsegypt.com/feed/',false,false,'Listed by Feedspot Egyptian news RSS directory; must verify XML and publishing rights before activation'),
+('Egyptian Streets','EG','https://egyptianstreets.com/feed/',false,false,'Listed by Feedspot Egyptian news RSS directory; must verify XML and publishing rights before activation'),
+('Al-Dostor','EG','https://www.dostor.org/rss.aspx',false,false,'Listed by Feedspot Egyptian news RSS directory; must verify XML and publishing rights before activation'),
+('Al-Masry Al-Youm','EG','https://www.almasryalyoum.com/rss/rssfeed',false,false,'Listed by Feedspot Egyptian news RSS directory; must verify XML and publishing rights before activation'),
+('Egypt Oil and Gas','EG','https://egyptoil-gas.com/feed/',false,false,'Listed by Feedspot Egyptian news RSS directory; must verify XML and publishing rights before activation'),
+('Al-Ahaly','EG','https://alahalygate.com/feed/',false,false,'Listed by Feedspot Egyptian news RSS directory; must verify XML and publishing rights before activation'),
+('Al-Zaman','EG','https://elzmannews.com/rss.xml',false,false,'Listed by Feedspot Egyptian news RSS directory; must verify XML and publishing rights before activation'),
+('Misr5','EG','https://misr5.com/feed/',false,false,'Listed by Feedspot Egyptian news RSS directory; must verify XML and publishing rights before activation'),
+('Nile Sports','EG','https://nilesports.com/feed/',false,false,'Listed by Feedspot Egyptian news RSS directory; must verify XML and publishing rights before activation')
+ON CONFLICT(feed_url) DO NOTHING;
 CREATE TABLE IF NOT EXISTS editorial_features (
  id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
  kind text NOT NULL CHECK(kind IN ('article','special_file','news')),
