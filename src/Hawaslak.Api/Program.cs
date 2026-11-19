@@ -569,6 +569,15 @@ INSERT INTO news_feeds(name,country_code,feed_url,enabled,auto_publish_allowed,l
 ('ESPN Soccer','US','https://www.espn.com/espn/rss/soccer/news',true,false,'May return bot-check HTTP 202 from Render; editorial review required'),
 ('ESPN NBA','US','https://www.espn.com/espn/rss/nba/news',true,false,'May return bot-check HTTP 202 from Render; editorial review required')
 ON CONFLICT(feed_url) DO NOTHING;
+-- Culture feed candidates from Feedspot directory; disabled until live validation.
+INSERT INTO news_feeds(name,country_code,feed_url,enabled,auto_publish_allowed,license_notes) VALUES
+('Eurozine Culture','INT','https://www.eurozine.com/feed',false,false,'Feedspot culture RSS directory; verify feed response on Render before enabling'),
+('BBC Culture','GB','https://www.bbc.com/culture/feed.rss',false,false,'Feedspot culture RSS directory; verify feed response on Render before enabling'),
+('France24 Culture','FR','https://www.france24.com/en/culture/rss',false,false,'Feedspot culture RSS directory; verify feed response on Render before enabling'),
+('Open Culture','US','https://www.openculture.com/feed',false,false,'Feedspot culture RSS directory; verify feed response on Render before enabling'),
+('Our Culture Mag','GB','https://ourculturemag.com/feed',false,false,'Feedspot culture RSS directory; verify feed response on Render before enabling'),
+('The Guardian Culture','GB','https://www.theguardian.com/us/culture/rss',false,false,'Feedspot culture RSS directory; verify feed response on Render before enabling')
+ON CONFLICT(feed_url) DO NOTHING;
 CREATE TABLE IF NOT EXISTS editorial_features (
  id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
  kind text NOT NULL CHECK(kind IN ('article','special_file','news')),
