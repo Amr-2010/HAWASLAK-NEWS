@@ -558,7 +558,7 @@ ON CONFLICT(feed_url) DO NOTHING;
 -- Sports feeds: publisher-listed Egyptian sections and externally verified global RSS (November 2026).
 INSERT INTO news_feeds(name,country_code,feed_url,enabled,auto_publish_allowed,license_notes) VALUES
 ('Elsport Arabic Sports','LB','https://www.elsport.com/',false,false,'Website URL only; RSS feed not yet verified; do not import HTML as RSS'),
-('Kooora Sports','INT','https://www.kooora.com/',false,false,'Website URL only; RSS feed not yet verified; do not import HTML as RSS'),
+('Kooora Sports','QA','https://www.kooora.com/',false,false,'Website URL only; RSS feed not yet verified; do not import HTML as RSS'),
 ('Asharq Al-Awsat World Sports','SA','https://aawsat.com/الرياضة/رياضة-عالمية',false,false,'Website URL only; RSS feed not yet verified; do not import HTML as RSS'),
 ('Yallakora News','EG','https://www.yallakora.com/newslisting',false,false,'Website URL only; RSS feed not yet verified; do not import HTML as RSS'),
 ('Btolat RSS Directory','EG','https://www.btolat.com/rss',false,false,'Publisher RSS directory; verify individual feed URLs before use; editorial review required'),
@@ -571,7 +571,7 @@ INSERT INTO news_feeds(name,country_code,feed_url,enabled,auto_publish_allowed,l
 ON CONFLICT(feed_url) DO NOTHING;
 -- Culture feed candidates from Feedspot directory; disabled until live validation.
 INSERT INTO news_feeds(name,country_code,feed_url,enabled,auto_publish_allowed,license_notes) VALUES
-('Eurozine Culture','INT','https://www.eurozine.com/feed',false,false,'Feedspot culture RSS directory; verify feed response on Render before enabling'),
+('Eurozine Culture','GB','https://www.eurozine.com/feed',false,false,'Feedspot culture RSS directory; verify feed response on Render before enabling'),
 ('BBC Culture','GB','https://www.bbc.com/culture/feed.rss',false,false,'Feedspot culture RSS directory; verify feed response on Render before enabling'),
 ('France24 Culture','FR','https://www.france24.com/en/culture/rss',false,false,'Feedspot culture RSS directory; verify feed response on Render before enabling'),
 ('Open Culture','US','https://www.openculture.com/feed',false,false,'Feedspot culture RSS directory; verify feed response on Render before enabling'),
