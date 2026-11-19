@@ -17,6 +17,7 @@ var app = builder.Build();
 app.UseDefaultFiles();
 app.UseStaticFiles();
 app.MapGet("/health", () => Results.Ok(new { status = "ok", app = "HAWASLAK NEWS" }));
+app.MapGet("/api/news/filters", async (NewsStore store,CancellationToken ct)=>Results.Ok(await store.NewsFilters(ct)));
 app.MapGet("/api/news", async (NewsStore store, string? country, string? category, string? region, string? source, string? q, int? page, int? pageSize, CancellationToken ct) => Results.Ok(await store.NewsPage(country,category,region,source,q,page??1,pageSize??40,ct)));
 app.MapPost("/api/admin/login", async (AdminLogin input, NewsStore store, CancellationToken ct) =>
 {
@@ -770,6 +771,17 @@ ORDER BY i.original_published_at DESC LIMIT 300", conn);
         var rows = new List<object>();
         while (await r.ReadAsync(ct)) rows.Add(new { id=r.GetInt64(0), title=r.GetString(1), subject=r.IsDBNull(2)?null:r.GetString(2), source=r.GetString(3), url=r.GetString(4), author=r.IsDBNull(5)?null:r.GetString(5), publishedAt=r.GetDateTime(6), imageCount=r.GetInt32(7), country=r.IsDBNull(8)?null:r.GetString(8).Trim(),category=r.GetString(9),region=r.GetString(10),imageUrl=r.IsDBNull(11)?null:r.GetString(11) });
         return rows;
+    }
+    public async Task<object> NewsFilters(CancellationToken ct)
+    {
+        if(!Configured)return new {sources=Array.Empty<string>(),countries=Array.Empty<string>()};
+        await using var conn=await Open(ct);
+        var sources=new List<string>();var countries=new List<string>();
+        await using(var cmd=new NpgsqlCommand("SELECT DISTINCT f.name FROM news_items i JOIN news_feeds f ON f.id=i.feed_id WHERE i.status='published' ORDER BY f.name",conn))
+        await using(var r=await cmd.ExecuteReaderAsync(ct)){while(await r.ReadAsync(ct))sources.Add(r.GetString(0));}
+        await using(var cmd=new NpgsqlCommand("SELECT DISTINCT country_code FROM news_items WHERE status='published' AND country_code IS NOT NULL ORDER BY country_code",conn))
+        await using(var r=await cmd.ExecuteReaderAsync(ct)){while(await r.ReadAsync(ct))countries.Add(r.GetString(0).Trim());}
+        return new {sources,countries};
     }
     public async Task<object> NewsPage(string? country,string? category,string? region,string? source,string? search,int page,int pageSize,CancellationToken ct)
     {
