@@ -17,7 +17,7 @@ var app = builder.Build();
 app.UseDefaultFiles();
 app.UseStaticFiles();
 app.MapGet("/health", () => Results.Ok(new { status = "ok", app = "HAWASLAK NEWS" }));
-app.MapGet("/api/news", async (NewsStore store, string? country, string? category, CancellationToken ct) => Results.Ok(await store.News(country, category, ct)));
+app.MapGet("/api/news", async (NewsStore store, string? country, string? category, string? region, string? source, string? q, int? page, int? pageSize, CancellationToken ct) => Results.Ok(await store.NewsPage(country,category,region,source,q,page??1,pageSize??40,ct)));
 app.MapPost("/api/admin/login", async (AdminLogin input, NewsStore store, CancellationToken ct) =>
 {
     if(string.IsNullOrWhiteSpace(input.Username)||string.IsNullOrWhiteSpace(input.Password))return Results.Unauthorized();
@@ -770,6 +770,26 @@ ORDER BY i.original_published_at DESC LIMIT 300", conn);
         var rows = new List<object>();
         while (await r.ReadAsync(ct)) rows.Add(new { id=r.GetInt64(0), title=r.GetString(1), subject=r.IsDBNull(2)?null:r.GetString(2), source=r.GetString(3), url=r.GetString(4), author=r.IsDBNull(5)?null:r.GetString(5), publishedAt=r.GetDateTime(6), imageCount=r.GetInt32(7), country=r.IsDBNull(8)?null:r.GetString(8).Trim(),category=r.GetString(9),region=r.GetString(10),imageUrl=r.IsDBNull(11)?null:r.GetString(11) });
         return rows;
+    }
+    public async Task<object> NewsPage(string? country,string? category,string? region,string? source,string? search,int page,int pageSize,CancellationToken ct)
+    {
+        page=Math.Max(1,page);pageSize=Math.Clamp(pageSize,10,100);
+        if(!Configured)return new {items=Array.Empty<object>(),total=0L,page,pages=1L};
+        await using var conn=await Open(ct);
+        const string regionSql="CASE WHEN i.country_code='EG' THEN 'egyptian' WHEN i.country_code IN ('SA','AE','QA','KW','BH','OM','JO','LB','SY','IQ','YE','PS','MA','DZ','TN','LY','SD','MR','SO','DJ','KM') THEN 'arab' ELSE 'world' END";
+        var where="i.status='published' AND (@q<>'' OR i.original_published_at >= now()-interval '7 days') AND (@country='' OR i.country_code=@country) AND (@category='' OR i.category=@category) AND (@region='' OR "+regionSql+"=@region) AND (@source='' OR f.name=@source) AND (@q='' OR COALESCE(i.title_ar,i.title,'') ILIKE @pattern OR COALESCE(i.subject,'') ILIKE @pattern OR f.name ILIKE @pattern OR COALESCE(i.author_name,'') ILIKE @pattern)";
+        await using var count=new NpgsqlCommand("SELECT count(*) FROM news_items i JOIN news_feeds f ON f.id=i.feed_id WHERE "+where,conn);
+        var args=new Dictionary<string,object>{{"q",(search??"").Trim()},{"pattern","%"+(search??"").Trim().Replace("\\","\\\\").Replace("%","\\%").Replace("_","\\_")+"%"},{"country",country=="all"?"":(country??"").ToUpperInvariant()},{"category",category=="all"?"":(category??"").ToLowerInvariant()},{"region",region=="all"?"":region??""},{"source",source=="all"?"":source??""}};
+        foreach(var pair in args)count.Parameters.AddWithValue(pair.Key,pair.Value);
+        var total=Convert.ToInt64(await count.ExecuteScalarAsync(ct));
+        var sql=@"SELECT i.id,COALESCE(NULLIF(i.title_ar,''),i.title),i.subject,f.name,i.original_url,i.author_name,i.original_published_at,i.image_count,i.country_code,i.category,"+regionSql+@",CASE WHEN f.license_notes ILIKE '%IMAGE_EMBED_OK%' THEN i.source_image_url ELSE NULL END FROM news_items i JOIN news_feeds f ON f.id=i.feed_id WHERE "+where+" ORDER BY i.original_published_at DESC,i.id DESC LIMIT @limit OFFSET @offset";
+        await using var cmd=new NpgsqlCommand(sql,conn);
+        foreach(var pair in args)cmd.Parameters.AddWithValue(pair.Key,pair.Value);
+        cmd.Parameters.AddWithValue("limit",pageSize);cmd.Parameters.AddWithValue("offset",(long)(page-1)*pageSize);
+        await using var r=await cmd.ExecuteReaderAsync(ct);
+        var rows=new List<object>();
+        while(await r.ReadAsync(ct))rows.Add(new {id=r.GetInt64(0),title=r.GetString(1),subject=r.IsDBNull(2)?null:r.GetString(2),source=r.GetString(3),url=r.GetString(4),author=r.IsDBNull(5)?null:r.GetString(5),publishedAt=r.GetDateTime(6),imageCount=r.GetInt32(7),country=r.IsDBNull(8)?null:r.GetString(8).Trim(),category=r.GetString(9),region=r.GetString(10),imageUrl=r.IsDBNull(11)?null:r.GetString(11)});
+        return new {items=rows,total,page,pages=Math.Max(1,(long)Math.Ceiling((double)total/pageSize))};
     }
     public async Task ActivateVerifiedFeeds(long[] ids,CancellationToken ct)
     {
