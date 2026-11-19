@@ -33,7 +33,7 @@ public sealed class NewsAiService
             try
             {
                 var raw=await Call(p.Name,p.Model!,prompt,ct);
-                var match=Regex.Match(raw,@"\\{[\\s\\S]*?\\}");
+                var match=Regex.Match(raw,@"\{[\s\S]*?\}");
                 if(!match.Success) throw new FormatException("AI response contained no JSON object (length "+raw.Length+")");
                 using var doc=JsonDocument.Parse(match.Value);
                 var root=doc.RootElement;
