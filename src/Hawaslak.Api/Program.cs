@@ -557,6 +557,10 @@ INSERT INTO news_feeds(name,country_code,feed_url,enabled,auto_publish_allowed,l
 ON CONFLICT(feed_url) DO NOTHING;
 -- Sports feeds: publisher-listed Egyptian sections and externally verified global RSS (November 2026).
 INSERT INTO news_feeds(name,country_code,feed_url,enabled,auto_publish_allowed,license_notes) VALUES
+('Elsport Arabic Sports','LB','https://www.elsport.com/',false,false,'Website URL only; RSS feed not yet verified; do not import HTML as RSS'),
+('Kooora Sports','INT','https://www.kooora.com/',false,false,'Website URL only; RSS feed not yet verified; do not import HTML as RSS'),
+('Asharq Al-Awsat World Sports','SA','https://aawsat.com/الرياضة/رياضة-عالمية',false,false,'Website URL only; RSS feed not yet verified; do not import HTML as RSS'),
+('Yallakora News','EG','https://www.yallakora.com/newslisting',false,false,'Website URL only; RSS feed not yet verified; do not import HTML as RSS'),
 ('Btolat RSS Directory','EG','https://www.btolat.com/rss',false,false,'Publisher RSS directory; verify individual feed URLs before use; editorial review required'),
 ('BBC Sport World','GB','https://feeds.bbci.co.uk/sport/rss.xml',true,false,'Sports RSS checked October 2026; source copyright retained'),
 ('BBC Football World','GB','https://feeds.bbci.co.uk/sport/football/rss.xml',true,false,'Football RSS checked October 2026; source copyright retained'),
