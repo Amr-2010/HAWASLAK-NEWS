@@ -1,0 +1,73 @@
+name: Build Hawaslak News apps
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'src/Hawaslak.Mobile/**'
+      - 'src/Hawaslak.Web/**'
+      - '.github/workflows/build-apps.yml'
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm ci --prefix src/Hawaslak.Web
+      - run: npm run build --prefix src/Hawaslak.Web
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Hawaslak-Web
+          path: src/Hawaslak.Web/dist/
+
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - run: dotnet workload install maui-android
+      - name: Build Android APK
+        run: dotnet publish src/Hawaslak.Mobile/Hawaslak.Mobile.csproj -f net8.0-android -c Release -p:AndroidPackageFormat=apk -p:AndroidKeyStore=false -o ./artifacts/android
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Hawaslak-Android-APK
+          path: artifacts/android/**/*.apk
+          if-no-files-found: error
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - run: dotnet workload install maui-windows
+      - name: Build Windows app
+        shell: pwsh
+        run: dotnet publish src/Hawaslak.Mobile/Hawaslak.Mobile.csproj -f net8.0-windows10.0.19041.0 -c Release -p:WindowsPackageType=None -p:WindowsAppSDKSelfContained=true -o artifacts/windows
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Hawaslak-Windows-EXE
+          path: artifacts/windows/
+          if-no-files-found: error
+
+  ios:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - run: dotnet workload install maui-ios
+      - name: Build unsigned iOS simulator app
+        run: dotnet build src/Hawaslak.Mobile/Hawaslak.Mobile.csproj -f net8.0-ios -c Release -p:RuntimeIdentifier=iossimulator-arm64 -p:EnableCodeSigning=false
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Hawaslak-iOS-Simulator
+          path: src/Hawaslak.Mobile/bin/Release/net8.0-ios/iossimulator-arm64/**/*.app/
+          if-no-files-found: warn
