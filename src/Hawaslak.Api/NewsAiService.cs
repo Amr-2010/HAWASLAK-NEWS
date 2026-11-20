@@ -21,7 +21,9 @@ public sealed class NewsAiService
         new("Cloudflare Workers AI",Has("CLOUDFLARE_API_TOKEN") && Has("CLOUDFLARE_ACCOUNT_ID"),Env("CLOUDFLARE_MODEL","@cf/meta/llama-3.1-8b-instruct"),1),
         new("GroqCloud",Has("GROQ_API_KEY"),Env("GROQ_MODEL","llama-3.3-70b-versatile"),2),
         new("Cerebras",Has("CEREBRAS_API_KEY"),Env("CEREBRAS_MODEL","gpt-oss-120b"),3),
-        new("OpenRouter",Has("OPENROUTER_API_KEY"),Env("OPENROUTER_MODEL","openrouter/free"),4)
+        new("Google Gemini",Has("GEMINI_API_KEY"),Env("GEMINI_MODEL","gemini-2.5-flash"),4),
+        new("Mistral AI",Has("MISTRAL_API_KEY"),Env("MISTRAL_MODEL","mistral-small-latest"),5),
+        new("OpenRouter",Has("OPENROUTER_API_KEY"),Env("OPENROUTER_MODEL","openrouter/free"),6)
     ];
     public async Task<ArabicNewsDraft> Generate(AiRequest input,CancellationToken ct)
     {
@@ -71,8 +73,10 @@ public sealed class NewsAiService
             (url,key)=provider switch {
                 "GroqCloud"=>("https://api.groq.com/openai/v1/chat/completions",Env("GROQ_API_KEY")),
                 "Cerebras"=>("https://api.cerebras.ai/v1/chat/completions",Env("CEREBRAS_API_KEY")),
+                "Google Gemini"=>("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",Env("GEMINI_API_KEY")),
+                "Mistral AI"=>("https://api.mistral.ai/v1/chat/completions",Env("MISTRAL_API_KEY")),
                 _=>("https://openrouter.ai/api/v1/chat/completions",Env("OPENROUTER_API_KEY"))};
-            payload=new {model,messages=new[]{new {role="user",content=prompt}},max_tokens=650,temperature=0.15};
+            payload=new {model,messages=new[]{new {role="user",content=prompt}},max_tokens=1200,temperature=0.15};
         }
         using var request=new HttpRequestMessage(HttpMethod.Post,url);
         request.Headers.Authorization=new AuthenticationHeaderValue("Bearer",key);
