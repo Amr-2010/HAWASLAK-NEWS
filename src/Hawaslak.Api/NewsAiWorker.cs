@@ -29,7 +29,7 @@ sealed class NewsAiWorker : BackgroundService
             if(now<_cooldownUntil) return new {processed=0,error="All providers are cooling down"};
             var items=await _store.GetPendingAiBatch(allowed,ct);
             var completed=0;
-            if(items.Count==0) return new {processed=0,error="No pending articles with a missing Arabic title or summary are eligible for AI preparation"};
+            if(items.Count==0) return new {processed=0,published=await PublishIfEnabled(ct),error="No pending articles eligible for AI preparation"};
             foreach (var item in items)
             {
                 _used++;
@@ -47,10 +47,14 @@ sealed class NewsAiWorker : BackgroundService
                     return new {processed=completed,error="AI provider failed; retry after cooldown. Check Render logs for the upstream error"};
                 }
             }
-            return new {processed=completed,error=(string?)null};
+            return new {processed=completed,published=await PublishIfEnabled(ct),error=(string?)null};
         }
         finally{_gate.Release();}
     }
+    private async Task<int> PublishIfEnabled(CancellationToken ct) =>
+        Environment.GetEnvironmentVariable("AI_AUTO_PUBLISH")?.Equals("true",StringComparison.OrdinalIgnoreCase)==true
+        ? await _store.AutoPublishApproved(ct) : 0;
+
     protected override async Task ExecuteAsync(CancellationToken ct)
     {
         try{await Task.Delay(TimeSpan.FromSeconds(45),ct);}catch(OperationCanceledException){return;}
