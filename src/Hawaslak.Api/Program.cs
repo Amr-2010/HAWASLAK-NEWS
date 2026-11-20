@@ -43,8 +43,8 @@ app.MapGet("/api/admin/status", async (HttpRequest request, NewsStore store, Can
     Authorized(request) ? Results.Ok(await store.Status(ct)) : Results.Unauthorized());
 app.MapGet("/api/admin/articles", async (HttpRequest request, NewsStore store, CancellationToken ct) =>
     Authorized(request) ? Results.Ok(await store.AdminArticles(ct)) : Results.Unauthorized());
-app.MapGet("/api/admin/articles/page", async (HttpRequest request,NewsStore store,string? status,string? region,string? country,int? page,int? pageSize,CancellationToken ct) =>
-    Authorized(request)?Results.Ok(await store.AdminArticlesPage(status,region,country,page??1,pageSize??30,ct)):Results.Unauthorized());
+app.MapGet("/api/admin/articles/page", async (HttpRequest request,NewsStore store,string? status,string? region,string? country,string? source,string? q,int? page,int? pageSize,CancellationToken ct) =>
+    Authorized(request)?Results.Ok(await store.AdminArticlesPage(status,region,country,source,q,page??1,pageSize??30,ct)):Results.Unauthorized());
 app.MapPost("/api/admin/collect", async (HttpRequest request, NewsCollector collector, CancellationToken ct) =>
 {
     if (!Authorized(request)) return Results.Unauthorized();
@@ -867,21 +867,23 @@ FROM news_items WHERE status='published'",conn);
         while(await r.ReadAsync(ct)) rows.Add(new {id=r.GetInt64(0),title=r.GetString(1),source=r.GetString(2),author=r.IsDBNull(3)?null:r.GetString(3),status=r.GetString(4),url=r.GetString(5),publishedAt=r.GetDateTime(6),images=r.GetInt32(7),country=r.IsDBNull(8)?null:r.GetString(8).Trim(),category=r.GetString(9),region=r.GetString(10),titleAr=r.IsDBNull(11)?null:r.GetString(11),subject=r.IsDBNull(12)?null:r.GetString(12),aiProvider=r.IsDBNull(13)?null:r.GetString(13),aiProcessedAt=r.IsDBNull(14)?(DateTime?)null:r.GetDateTime(14),rssExcerpt=r.IsDBNull(15)?null:r.GetString(15),sourceImageUrl=r.IsDBNull(16)?null:r.GetString(16)});
         return rows;
     }
-    public async Task<object> AdminArticlesPage(string? status,string? region,string? country,int page,int pageSize,CancellationToken ct)
+    public async Task<object> AdminArticlesPage(string? status,string? region,string? country,string? source,string? q,int page,int pageSize,CancellationToken ct)
     {
         page=Math.Max(1,page);pageSize=Math.Clamp(pageSize,10,100);
         if(status is not ("pending" or "published" or "rejected"))status="pending";
         if(region is not ("egyptian" or "arab" or "world"))region="all";
-        if(country!="EG")country="all";
+        country=string.IsNullOrWhiteSpace(country)||country.Equals("all",StringComparison.OrdinalIgnoreCase)?"all":country.Trim().ToUpperInvariant();
+        source=string.IsNullOrWhiteSpace(source)?"all":source.Trim();
+        q=string.IsNullOrWhiteSpace(q)?"":q.Trim();
         await using var conn=await Open(ct);
         const string regionSql="CASE WHEN i.country_code='EG' THEN 'egyptian' WHEN i.country_code IN ('SA','AE','QA','KW','BH','OM','JO','LB','SY','IQ','YE','PS','MA','DZ','TN','LY','SD','MR','SO','DJ','KM') THEN 'arab' ELSE 'world' END";
-        var where="i.status=@status AND (@country='all' OR i.country_code='EG') AND (@region='all' OR "+regionSql+"=@region)";
-        await using var countCmd=new NpgsqlCommand("SELECT count(*) FROM news_items i WHERE "+where,conn);
-        countCmd.Parameters.AddWithValue("status",status);countCmd.Parameters.AddWithValue("country",country);countCmd.Parameters.AddWithValue("region",region);
+        var where="i.status=@status AND (@country='all' OR i.country_code=@country) AND (@region='all' OR "+regionSql+"=@region) AND (@source='all' OR f.name=@source) AND (@q='' OR i.title ILIKE '%' || @q || '%' OR COALESCE(i.title_ar,'') ILIKE '%' || @q || '%' OR COALESCE(i.subject,'') ILIKE '%' || @q || '%')";
+        await using var countCmd=new NpgsqlCommand("SELECT count(*) FROM news_items i JOIN news_feeds f ON f.id=i.feed_id WHERE "+where,conn);
+        countCmd.Parameters.AddWithValue("status",status);countCmd.Parameters.AddWithValue("country",country);countCmd.Parameters.AddWithValue("region",region);countCmd.Parameters.AddWithValue("source",source);countCmd.Parameters.AddWithValue("q",q);
         var total=Convert.ToInt64(await countCmd.ExecuteScalarAsync(ct));
         var sql="SELECT i.id,i.title,f.name,i.author_name,i.status,i.original_url,i.original_published_at,i.image_count,i.country_code,i.category,"+regionSql+" AS region,i.title_ar,i.subject,i.ai_provider,i.ai_processed_at,i.rss_excerpt,i.source_image_url FROM news_items i JOIN news_feeds f ON f.id=i.feed_id WHERE "+where+" ORDER BY i.imported_at DESC,i.id DESC LIMIT @limit OFFSET @offset";
         await using var cmd=new NpgsqlCommand(sql,conn);
-        cmd.Parameters.AddWithValue("status",status);cmd.Parameters.AddWithValue("country",country);cmd.Parameters.AddWithValue("region",region);
+        cmd.Parameters.AddWithValue("status",status);cmd.Parameters.AddWithValue("country",country);cmd.Parameters.AddWithValue("region",region);cmd.Parameters.AddWithValue("source",source);cmd.Parameters.AddWithValue("q",q);
         cmd.Parameters.AddWithValue("limit",pageSize);cmd.Parameters.AddWithValue("offset",(long)(page-1)*pageSize);
         await using var r=await cmd.ExecuteReaderAsync(ct);
         var rows=new List<object>();
