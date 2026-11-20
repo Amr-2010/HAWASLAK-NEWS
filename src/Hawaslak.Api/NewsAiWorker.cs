@@ -24,7 +24,7 @@ sealed class NewsAiWorker : BackgroundService
             var today=DateOnly.FromDateTime(now);
             if(_date!=today){_date=today;_used=0;}
             var maxDaily=int.TryParse(Environment.GetEnvironmentVariable("AI_DAILY_REQUEST_LIMIT"),out var limit)?Math.Clamp(limit,1,500):100;
-            var allowed=Math.Min(Math.Clamp(requested,1,10),Math.Max(0,maxDaily-_used));
+            var allowed=Math.Min(Math.Clamp(requested,1,20),Math.Max(0,maxDaily-_used));
             if (allowed==0) return new {processed=0,error="Daily processing limit reached"};
             if(now<_cooldownUntil) return new {processed=0,error="All providers are cooling down"};
             var items=await _store.GetPendingAiBatch(allowed,ct);
@@ -43,7 +43,7 @@ sealed class NewsAiWorker : BackgroundService
                 catch(Exception ex)
                 {
                     _logger.LogWarning("AI processing suspended after error: {Message}",ex.Message);
-                    _cooldownUntil=DateTime.UtcNow.AddMinutes(30);
+                    _cooldownUntil=DateTime.UtcNow.AddMinutes(5);
                     return new {processed=completed,error="AI provider failed; retry after cooldown. Check Render logs for the upstream error"};
                 }
             }
@@ -62,11 +62,11 @@ sealed class NewsAiWorker : BackgroundService
         {
             if(Environment.GetEnvironmentVariable("AI_AUTO_PREPARE")?.Equals("true",StringComparison.OrdinalIgnoreCase)==true)
             {
-                try{await ProcessBatch(5,ct);}
+                try{await ProcessBatch(10,ct);}
                 catch(OperationCanceledException) when(ct.IsCancellationRequested){break;}
                 catch(Exception ex){_logger.LogWarning("AI batch encountered a temporary failure: {Message}",ex.Message);}
             }
-            try{await Task.Delay(TimeSpan.FromMinutes(15),ct);}catch(OperationCanceledException){break;}
+            try{await Task.Delay(TimeSpan.FromMinutes(5),ct);}catch(OperationCanceledException){break;}
         }
     }
 }
