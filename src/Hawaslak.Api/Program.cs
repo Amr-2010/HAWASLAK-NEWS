@@ -791,7 +791,7 @@ FROM news_items WHERE status='published'",conn);
         if(!Configured)return new {sources=Array.Empty<string>(),countries=Array.Empty<string>()};
         await using var conn=await Open(ct);
         var sources=new List<string>();var countries=new List<string>();
-        await using(var cmd=new NpgsqlCommand("SELECT DISTINCT f.name FROM news_items i JOIN news_feeds f ON f.id=i.feed_id WHERE i.status='published' ORDER BY f.name",conn))
+        await using(var cmd=new NpgsqlCommand("SELECT DISTINCT f.name FROM news_feeds f WHERE f.enabled=true ORDER BY f.name",conn))
         await using(var r=await cmd.ExecuteReaderAsync(ct)){while(await r.ReadAsync(ct))sources.Add(r.GetString(0));}
         await using(var cmd=new NpgsqlCommand("SELECT DISTINCT country_code FROM news_items WHERE status='published' AND country_code IS NOT NULL ORDER BY country_code",conn))
         await using(var r=await cmd.ExecuteReaderAsync(ct)){while(await r.ReadAsync(ct))countries.Add(r.GetString(0).Trim());}
