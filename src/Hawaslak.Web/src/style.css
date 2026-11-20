@@ -416,3 +416,7 @@ button:focus-visible,a:focus-visible{outline:3px solid #f0a63c;outline-offset:3p
 .back-to-top:focus-visible{outline:3px solid #efb452;outline-offset:3px}
 @media(max-width:650px){.back-to-top{width:43px;height:43px;bottom:87px;inset-inline-start:12px;border-radius:13px;font-size:25px}.hawaslak-footer{padding-inline:12px;gap:8px}}
 @media(prefers-reduced-motion:reduce){.back-to-top{transition:none}.back-to-top:hover{transform:none}}
+
+/* Slightly faster regional news ribbons (40s -> 30s), keeping smooth continuous motion. */
+.regional-strip .regional-marquee{animation-duration:30s!important}
+@media(prefers-reduced-motion:reduce){.regional-strip .regional-marquee{animation:none!important}}
