@@ -6,8 +6,6 @@ sealed class NewsAiWorker : BackgroundService
     private readonly NewsAiService _ai;
     private readonly ILogger<NewsAiWorker> _logger;
     private readonly SemaphoreSlim _gate = new(1,1);
-    private DateOnly _date = DateOnly.FromDateTime(DateTime.UtcNow);
-    private int _used;
     private DateTime _cooldownUntil = DateTime.MinValue;
     public NewsAiWorker(NewsStore store, NewsAiService ai, ILogger<NewsAiWorker> logger)
     {
@@ -21,18 +19,14 @@ sealed class NewsAiWorker : BackgroundService
         try
         {
             var now=DateTime.UtcNow;
-            var today=DateOnly.FromDateTime(now);
-            if(_date!=today){_date=today;_used=0;}
-            var maxDaily=int.TryParse(Environment.GetEnvironmentVariable("AI_DAILY_REQUEST_LIMIT"),out var limit)?Math.Clamp(limit,1,500):100;
-            var allowed=Math.Min(Math.Clamp(requested,1,20),Math.Max(0,maxDaily-_used));
-            if (allowed==0) return new {processed=0,error="Daily processing limit reached"};
+            // No application-level daily news cap; bounded batches keep each cycle responsive.
+            var allowed=Math.Clamp(requested,1,20);
             if(now<_cooldownUntil) return new {processed=0,error="All providers are cooling down"};
             var items=await _store.GetPendingAiBatch(allowed,ct);
             var completed=0;
             if(items.Count==0) return new {processed=0,published=await PublishIfEnabled(ct),error="No pending articles eligible for AI preparation"};
             foreach (var item in items)
             {
-                _used++;
                 try
                 {
                     var draft=await _ai.Generate(new AiRequest(item.Title,item.Context,item.Source,item.Country),ct);
