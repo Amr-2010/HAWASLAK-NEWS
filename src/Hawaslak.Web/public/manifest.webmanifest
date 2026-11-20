@@ -1,0 +1,19 @@
+{
+  "name": "هيوصلك نيوز | Hawaslak News",
+  "short_name": "هيوصلك نيوز",
+  "lang": "ar",
+  "dir": "rtl",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#123d60",
+  "icons": [
+    {
+      "src": "/news-logo.png",
+      "sizes": "any",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
