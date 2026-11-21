@@ -890,10 +890,10 @@ FROM news_items WHERE status='published'",conn);
         while(await r.ReadAsync(ct))rows.Add(new {id=r.GetInt64(0),title=r.GetString(1),source=r.GetString(2),author=r.IsDBNull(3)?null:r.GetString(3),status=r.GetString(4),url=r.GetString(5),publishedAt=r.GetDateTime(6),images=r.GetInt32(7),country=r.IsDBNull(8)?null:r.GetString(8).Trim(),category=r.GetString(9),region=r.GetString(10),titleAr=r.IsDBNull(11)?null:r.GetString(11),subject=r.IsDBNull(12)?null:r.GetString(12),aiProvider=r.IsDBNull(13)?null:r.GetString(13),aiProcessedAt=r.IsDBNull(14)?(DateTime?)null:r.GetDateTime(14),rssExcerpt=r.IsDBNull(15)?null:r.GetString(15),sourceImageUrl=r.IsDBNull(16)?null:r.GetString(16)});
         return new {items=rows,total,page,pageSize,pages=Math.Max(1,(long)Math.Ceiling((double)total/pageSize))};
     }
-    public async Task<int> DeleteExpiredUnpublished(CancellationToken ct)
+    public async Task<int> DeleteExpiredNews(CancellationToken ct)
     {
         await using var conn=await Open(ct);
-        await using var cmd=new NpgsqlCommand("DELETE FROM news_items WHERE status IN ('pending','rejected') AND imported_at < now() - interval '24 hours'",conn);
+        await using var cmd=new NpgsqlCommand("DELETE FROM news_items WHERE original_published_at < now() - interval '4 days'",conn);
         return await cmd.ExecuteNonQueryAsync(ct);
     }
     public async Task<List<(long Id,string Title,string Source,string Country,string? Context)>> GetPendingAiBatch(int max,CancellationToken ct)
@@ -1040,8 +1040,20 @@ VALUES(@n,@c,@u,@a,@l) ON CONFLICT(feed_url) DO UPDATE SET name=EXCLUDED.name,co
         var feedCategory=await FeedCategory(feedId,conn,ct);
         foreach(var item in items)
         {
+            if(item.Published < DateTimeOffset.UtcNow.AddDays(-4)) continue;
             await using var cmd=new NpgsqlCommand(@"INSERT INTO news_items(feed_id,title,title_ar,subject,original_url,author_name,original_published_at,status,published_at,country_code,category,rss_excerpt,source_image_url)
-VALUES(@f,@t,@titleAr,@s,@u,@a,@p,@status,@published,(SELECT country_code FROM news_feeds WHERE id=@f),@category,@excerpt,@image) ON CONFLICT(original_url) DO UPDATE SET title_ar=COALESCE(NULLIF(news_items.title_ar,''),EXCLUDED.title_ar),rss_excerpt=COALESCE(news_items.rss_excerpt,EXCLUDED.rss_excerpt),source_image_url=COALESCE(news_items.source_image_url,EXCLUDED.source_image_url)",conn);
+VALUES(@f,@t,@titleAr,@s,@u,@a,@p,@status,@published,(SELECT country_code FROM news_feeds WHERE id=@f),@category,@excerpt,@image) ON CONFLICT(original_url) DO NOTHING",conn);
+            // Avoid duplicate headlines across feeds without touching already published records.
+            await using(var duplicate=new NpgsqlCommand(@"SELECT EXISTS(
+SELECT 1 FROM news_items
+WHERE original_published_at >= now() - interval '4 days'
+AND lower(regexp_replace(title, '[^[:alnum:]ء-ي]+', '', 'g')) =
+    lower(regexp_replace(@incoming_title, '[^[:alnum:]ء-ي]+', '', 'g'))
+)",conn))
+            {
+                duplicate.Parameters.AddWithValue("incoming_title",item.Title);
+                if((bool)(await duplicate.ExecuteScalarAsync(ct))!) continue;
+            }
             cmd.Parameters.AddWithValue("f",feedId);
             cmd.Parameters.AddWithValue("t",item.Title);
             cmd.Parameters.AddWithValue("titleAr",LooksArabic(item.Title)?item.Title:DBNull.Value);
@@ -1104,7 +1116,7 @@ sealed class NewsCollector : BackgroundService
         await Task.Delay(TimeSpan.FromSeconds(20),stoppingToken);
         while(!stoppingToken.IsCancellationRequested)
         {
-            try { var deleted=await _store.DeleteExpiredUnpublished(stoppingToken);if(deleted>0)_logger.LogInformation("Deleted {Count} unpublished news items older than 24 hours",deleted);await CollectOnce(stoppingToken); }
+            try { var deleted=await _store.DeleteExpiredNews(stoppingToken);if(deleted>0)_logger.LogInformation("Deleted {Count} news items older than 4 days",deleted);await CollectOnce(stoppingToken); }
             catch(Exception e) { _logger.LogError(e,"RSS cycle failed"); }
             await Task.Delay(TimeSpan.FromMinutes(15),stoppingToken);
         }
@@ -1134,7 +1146,7 @@ sealed class NewsCollector : BackgroundService
                         if(string.IsNullOrEmpty(url)) url=entry.Elements().FirstOrDefault(e=>e.Name.LocalName=="link")?.Attribute("href")?.Value;
                         var rawDate=Get("pubDate")??Get("published")??Get("updated");
                         if(!DateTimeOffset.TryParse(rawDate,CultureInfo.InvariantCulture,DateTimeStyles.AssumeUniversal,out var date)) continue;
-                        if(date<now.AddHours(-24)||date>now.AddMinutes(5)) continue;
+                        if(date<now.AddDays(-4)||date>now.AddMinutes(5)) continue;
                         if(string.IsNullOrWhiteSpace(title)||title.Length>500||!Uri.TryCreate(url,UriKind.Absolute,out var link)||link.Scheme!="https") continue;
                         var author=Get("creator")??Get("author");
                         var rawExcerpt=Get("description")??Get("summary");
