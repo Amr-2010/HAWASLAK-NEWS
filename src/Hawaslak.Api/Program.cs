@@ -1088,10 +1088,10 @@ FROM news_items WHERE status='published'",conn);
 WHERE i.status IN ('pending','published')
 AND (NULLIF(btrim(i.title_ar),'') IS NULL OR NULLIF(btrim(i.subject),'') IS NULL)
 AND (i.ai_processed_at IS NULL OR i.ai_processed_at < now() - interval '1 day')
-ORDER BY CASE WHEN i.content_kind IN ('article','investigation','report') THEN 0 ELSE 1 END,
+ORDER BY CASE WHEN i.status='pending' THEN 0 ELSE 1 END,
 CASE WHEN NULLIF(btrim(i.title_ar),'') IS NULL THEN 0 ELSE 1 END,
 i.imported_at DESC LIMIT @max",conn);
-        cmd.Parameters.AddWithValue("max",Math.Clamp(max,1,10));
+        cmd.Parameters.AddWithValue("max",Math.Clamp(max,1,20));
         await using var reader=await cmd.ExecuteReaderAsync(ct);
         while(await reader.ReadAsync(ct)) rows.Add((reader.GetInt64(0),reader.GetString(1),reader.GetString(2),reader.GetString(3).Trim(),reader.IsDBNull(4)?null:reader.GetString(4)));
         return rows;
