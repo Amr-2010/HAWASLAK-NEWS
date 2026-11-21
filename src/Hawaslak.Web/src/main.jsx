@@ -43,6 +43,28 @@ function App(){
  const createAdmin=async()=>{setBusy(true);setError('');try{const r=await fetch('/api/admin/users',{method:'POST',headers:auth(),body:JSON.stringify({username:newAdminName,password:newAdminPassword})});if(!r.ok)throw Error(await r.text());setNewAdminName('');setNewAdminPassword('');const users=await fetch('/api/admin/users',{headers:auth()});if(users.ok)setAdminUsers(await users.json())}catch(e){setError(e.message)}finally{setBusy(false)}};
  const[newsCounts,setNewsCounts]=useState({lastWeek:0,totalPublished:0,egyptian:0,arab:0,world:0});
  const[newsPage,setNewsPage]=useState(1),[newsTotal,setNewsTotal]=useState(0),[newsPagesCount,setNewsPagesCount]=useState(1),[newsLoading,setNewsLoading]=useState(false),[newsFilters,setNewsFilters]=useState({sources:[],countries:[]});
+ // Region tickers must not depend on the first page or the user's current filters.
+ const[regionalHeadlines,setRegionalHeadlines]=useState({egyptian:[],arab:[],world:[]});
+ useEffect(()=>{
+   let active=true;
+   const refresh=async()=>{
+     const regions=['egyptian','arab','world'];
+     const results=await Promise.allSettled(regions.map(async region=>{
+       const response=await fetch('/api/news?'+new URLSearchParams({region,page:'1',pageSize:'10'}));
+       if(!response.ok)throw Error('Regional news HTTP '+response.status);
+       const data=await response.json();
+       return [region,data.items||[]];
+     }));
+     if(active)setRegionalHeadlines(prev=>{
+       const next={...prev};
+       results.forEach(result=>{if(result.status==='fulfilled')next[result.value[0]]=result.value[1]});
+       return next;
+     });
+   };
+   refresh();
+   const timer=setInterval(refresh,5*60*1000);
+   return()=>{active=false;clearInterval(timer)};
+ },[]);
  const fetchNews=async(pageNumber=1,append=false)=>{
    setNewsLoading(true);
    try{
@@ -87,7 +109,7 @@ function App(){
  {page==='features'?<main className="news-main egypt-editorial"><div className="section-heading newsroom-heading"><h2>{t('المقالات والملفات الخاصة','Articles & Special Reports')}</h2></div>{activeFeature?<article className="panel feature-detail"><button onClick={()=>setActiveFeature(null)}>{t('العودة للمقالات','Back to articles')}</button><h1>{activeFeature.title}</h1><small>{activeFeature.kind==='news'?t('خبر','News'):activeFeature.kind==='article'?t('مقال','Article'):t('ملف خاص','Special report')}</small>{activeFeature.coverUrl&&/^https:\/\//.test(activeFeature.coverUrl)&&<img src={activeFeature.coverUrl} alt="" loading="lazy"/>}<div className="feature-body">{activeFeature.body}</div></article>:<div className="news-grid editorial-feature-grid">{features.map(x=><article className="news-card feature-card" key={x.id}><div className="story-body"><small>{x.kind==='news'?t('خبر','News'):x.kind==='article'?t('مقال','Article'):t('ملف خاص','Special report')}</small><h2>{x.title}</h2><p>{x.excerpt||x.body.slice(0,180)}</p><button onClick={()=>setActiveFeature(x)}>{t('اقرأ المزيد','Read more')}</button></div></article>)}{!features.length&&<p>{t('سيتم نشر المقالات والملفات الخاصة هنا قريبًا.','Editorial articles and special reports will appear here.')}</p>}</div>}</main>:
  page==='news'?<main className="news-main egypt-editorial"><section className="manual-news-section"><div className="section-heading"><h2>{t('أخبار هيوصلك نيوز الخاصة','Hawaslak News Exclusives')}</h2></div><div className="manual-news-list">{features.filter(x=>x.kind==='news').slice(0,8).map(x=><article className="news-card" key={x.id}><div className="story-body"><small>{t('خبر من التحرير','Editorial news')}</small><h2>{x.title}</h2><p>{x.excerpt||x.body.slice(0,200)}</p><button onClick={()=>{setActiveFeature(x);setPage('features')}}>{t('اقرأ الخبر','Read story')}</button></div></article>)}</div></section>
 
- <div className="regional-strips">{newsStrip(news.filter(n=>n.region==='egyptian'),'🇪🇬 '+t('أخبار مصر','Egypt News'),'egypt')}{newsStrip(news.filter(n=>n.region==='arab'),'🌙 '+t('الأخبار العربية','Arab News'),'arab')}{newsStrip(news.filter(n=>n.region==='world'),'🌍 '+t('الأخبار العالمية','World News'),'world')}</div>
+ <div className="regional-strips">{newsStrip(regionalHeadlines.egyptian,'🇪🇬 '+t('أخبار مصر','Egypt News'),'egypt')}{newsStrip(regionalHeadlines.arab,'🌙 '+t('الأخبار العربية','Arab News'),'arab')}{newsStrip(regionalHeadlines.world,'🌍 '+t('الأخبار العالمية','World News'),'world')}</div>
  {error&&<p className="alert">{error}</p>}
  <div className="regional-filter-tabs" role="group" aria-label={t('نطاق الأخبار','News region')}>{[['all','كل الأخبار','All'],['egyptian','أخبار مصرية','Egyptian'],['arab','أخبار عربية','Arab'],['world','أخبار عالمية','World']].map(([key,arLabel,enLabel])=><button key={key} className={selectedRegion===key?'selected':''} onClick={()=>{setSelectedRegion(key);setSelectedCountry('all');setExpandedNewsId(null)}}>{t(arLabel,enLabel)} <small>{searchText.trim()?(key==='all'?newsTotal:news.filter(n=>n.region===key).length):(key==='all'?newsCounts.lastWeek:(newsCounts[key]??0))}</small></button>)}</div><div className="newsroom-controls"><div className="country-filter"><label htmlFor="news-source-filter">{t('الموقع الإخباري','News website')}</label><select id="news-source-filter" value={selectedSource} onChange={e=>setSelectedSource(e.target.value)}><option value="all">{t('جميع المواقع','All websites')}</option>{newsFilters.sources.map(source=><option key={source} value={source}>{source}</option>)}</select></div><div className="country-filter"><label htmlFor="news-country-filter">{t('الدولة','Country')}</label><select id="news-country-filter" value={selectedCountry} onChange={e=>setSelectedCountry(e.target.value)}><option value="all">{t('جميع الدول','All countries')}</option>{newsFilters.countries.map(c=><option key={c} value={c}>{ar?countryLabel(c):c}</option>)}</select></div><span>{t('تصنيف الدولة بحسب بلد المصدر','Country indicates publisher location')}</span></div>
  {filteredNews.length>0?<><div className="newsroom-front">
