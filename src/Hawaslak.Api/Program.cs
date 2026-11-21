@@ -156,6 +156,7 @@ app.MapPut("/api/admin/site-settings", async (HttpRequest request,NewsStore stor
  await store.SaveSiteSettings(input,ct);return Results.Ok(new {saved=true});
 });
 app.MapGet("/api/features", async (NewsStore store, CancellationToken ct) => Results.Ok(await store.Features(false,ct)));
+app.MapGet("/api/editorial-discoveries", async (NewsStore store, CancellationToken ct) => Results.Ok(await store.EditorialDiscoveries(ct)));
 app.MapGet("/api/admin/features", async (HttpRequest request, NewsStore store, CancellationToken ct) =>
     Authorized(request) ? Results.Ok(await store.Features(true,ct)) : Results.Unauthorized());
 app.MapPost("/api/admin/features", async (HttpRequest request, NewsStore store, FeatureInput input, CancellationToken ct) =>
@@ -771,6 +772,23 @@ CREATE TABLE IF NOT EXISTS news_images (
             await cmd.ExecuteNonQueryAsync(ct);
         }
         await tx.CommitAsync(ct);
+    }
+    public async Task<object> EditorialDiscoveries(CancellationToken ct)
+    {
+        if(!Configured)return Array.Empty<object>();
+        await using var conn=await Open(ct);
+        await using var cmd=new NpgsqlCommand(@"SELECT i.id,i.content_kind,COALESCE(NULLIF(i.title_ar,''),i.title),COALESCE(i.rss_excerpt,''),i.original_url,f.name,i.original_published_at
+FROM news_items i JOIN news_feeds f ON f.id=i.feed_id
+WHERE i.content_kind IN ('article','investigation','report') AND i.status='published'
+ORDER BY i.original_published_at DESC LIMIT 100",conn);
+        await using var r=await cmd.ExecuteReaderAsync(ct);
+        var rows=new List<object>();
+        while(await r.ReadAsync(ct))rows.Add(new {
+            id="feed-"+r.GetInt64(0),kind=r.GetString(1),title=r.GetString(2),
+            excerpt=r.GetString(3),body="",originalUrl=r.GetString(4),
+            source=r.GetString(5),createdAt=r.GetDateTime(6),external=true
+        });
+        return rows;
     }
     public async Task<object> Features(bool includeDrafts,CancellationToken ct)
     {
