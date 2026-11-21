@@ -429,3 +429,20 @@ button:focus-visible,a:focus-visible{outline:3px solid #f0a63c;outline-offset:3p
 .instant-search-results strong{font-size:14px;line-height:1.6}
 .instant-search-results small{font-size:11px;color:#697c8c}
 .instant-search-results p{margin:0;padding:14px;color:#566a7c;font-size:13px}
+
+/* Manually managed advertising inventory: visible only for active campaigns. */
+.ad-placement{display:flex;gap:12px;align-items:stretch;justify-content:center;flex-wrap:wrap;max-width:1250px;margin:14px auto;padding:0 14px;box-sizing:border-box}
+.ad-tile{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:0;max-width:100%;border:1px solid #e4e9f0;border-radius:12px;overflow:hidden;background:#f8fafc;color:#243d52;text-decoration:none}
+.ad-tile small{position:absolute;top:4px;right:7px;background:#ffffffdd;border-radius:3px;padding:2px 5px;font-size:10px;color:#546578;z-index:1}
+.ad-tile img{display:block;width:100%;height:auto;max-height:250px;object-fit:contain}
+.ad-tile strong{padding:24px 40px}
+.ad-top .ad-tile,.ad-footer .ad-tile{width:min(100%,970px)}
+.ad-between .ad-tile{width:min(100%,728px)}
+.ad-sidebar .ad-tile{width:min(100%,300px)}
+.ad-admin-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:14px 0}
+.ad-admin-form input,.ad-admin-form select{min-width:0;width:100%;box-sizing:border-box;padding:10px}
+.ad-admin-form label{display:flex;align-items:center;gap:8px}
+.ad-admin-form label input{width:auto}
+.ad-admin-item{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px;border-top:1px solid #e6edf2}
+.ad-admin-item span{flex:1}
+@media(max-width:650px){.ad-admin-form{grid-template-columns:1fr}.ad-placement{padding:0 10px}.ad-tile img{max-height:180px}}
