@@ -1261,7 +1261,10 @@ VALUES(@n,@c,@u,@a,@l) ON CONFLICT(feed_url) DO UPDATE SET name=EXCLUDED.name,co
         foreach(var item in items)
         {
             var contentKind = await FeedEditorialKind(feedId,conn,ct);
-            if(contentKind=="news" && item.Published < DateTimeOffset.UtcNow.AddDays(-4)) continue;
+            // Only ingest items originally published during the latest 15 minutes.
+            // This is also enforced here to protect manual collection and future callers.
+            var receivedAt=DateTimeOffset.UtcNow;
+            if(item.Published < receivedAt.AddMinutes(-15) || item.Published > receivedAt.AddMinutes(2)) continue;
             await using var cmd=new NpgsqlCommand(@"INSERT INTO news_items(feed_id,title,title_ar,subject,original_url,author_name,original_published_at,status,published_at,country_code,category,rss_excerpt,source_image_url,content_kind)
 VALUES(@f,@t,@titleAr,@s,@u,@a,@p,@status,@published,(SELECT country_code FROM news_feeds WHERE id=@f),@category,@excerpt,@image,@contentKind) ON CONFLICT(original_url) DO NOTHING",conn);
             // Avoid duplicate headlines across feeds without touching already published records.
@@ -1386,7 +1389,8 @@ sealed class NewsCollector : BackgroundService
                         if(string.IsNullOrEmpty(url)) url=entry.Elements().FirstOrDefault(e=>e.Name.LocalName=="link")?.Attribute("href")?.Value;
                         var rawDate=Get("pubDate")??Get("published")??Get("updated");
                         if(!DateTimeOffset.TryParse(rawDate,CultureInfo.InvariantCulture,DateTimeStyles.AssumeUniversal,out var date)) continue;
-                        if(date<now.AddDays(-4)||date>now.AddMinutes(5)) continue;
+                        // Strict source publication window: no historical backlog, even on the first run.
+                        if(date<now.AddMinutes(-15)||date>now.AddMinutes(2)) continue;
                         if(string.IsNullOrWhiteSpace(title)||title.Length>500||!Uri.TryCreate(url,UriKind.Absolute,out var link)||link.Scheme!="https") continue;
                         var author=Get("creator")??Get("author");
                         var rawExcerpt=Get("description")??Get("summary");
