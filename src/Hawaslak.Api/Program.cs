@@ -952,11 +952,11 @@ ORDER BY CASE WHEN i.status='published' AND NULLIF(btrim(i.subject),'') IS NULL 
     public async Task<int> AutoPublishApproved(CancellationToken ct)
     {
         await using var conn=await Open(ct);
-        // Only explicitly approved feeds can auto-publish. Keep original attribution and link.
+        // Automatically publish AI-prepared articles from enabled feeds; retain source attribution and link.
         await using var cmd=new NpgsqlCommand(@"UPDATE news_items i
 SET status='published',published_at=COALESCE(i.published_at,now())
 FROM news_feeds f
-WHERE i.feed_id=f.id AND f.enabled=true AND f.auto_publish_allowed=true
+WHERE i.feed_id=f.id AND f.enabled=true
 AND i.status='pending' AND i.ai_processed_at IS NOT NULL
 AND NULLIF(btrim(i.title_ar),'') IS NOT NULL
 AND NULLIF(btrim(i.subject),'') IS NOT NULL
