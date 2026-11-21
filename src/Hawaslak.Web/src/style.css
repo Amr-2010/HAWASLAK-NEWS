@@ -446,3 +446,9 @@ button:focus-visible,a:focus-visible{outline:3px solid #f0a63c;outline-offset:3p
 .ad-admin-item{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px;border-top:1px solid #e6edf2}
 .ad-admin-item span{flex:1}
 @media(max-width:650px){.ad-admin-form{grid-template-columns:1fr}.ad-placement{padding:0 10px}.ad-tile img{max-height:180px}}
+
+/* Compact live visitor metrics above the masthead */
+.utility-bar .visitor-counter{display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap;direction:rtl}
+.visitor-counter span{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border:1px solid #ffffff36;border-radius:18px;white-space:nowrap;font-size:12px}
+.visitor-counter b{font-size:13px;font-variant-numeric:tabular-nums;color:#a8e5ff}
+@media(max-width:650px){.utility-bar{flex-wrap:wrap;gap:7px}.utility-bar .visitor-counter{order:-1;width:100%;gap:5px}.visitor-counter span{font-size:10px;padding:3px 6px}.visitor-counter b{font-size:11px}}
