@@ -480,3 +480,9 @@ button:focus-visible,a:focus-visible{outline:3px solid #f0a63c;outline-offset:3p
 .admin-index-track button:hover,.admin-index-track button:focus-visible{background:#34658e}
 #admin-stats,#admin-sources,#admin-ai,#admin-ads,#admin-settings,#admin-publishing,#admin-articles,#admin-users{scroll-margin-top:68px}
 @media(max-width:650px){.admin-index{margin:6px 0;padding:4px;border-radius:8px}.admin-index-track{gap:4px}.admin-index-track button{font-size:11px;padding:6px 9px}}
+
+/* Minimal admin quick-links: abbreviated labels, no oversized cards. */
+.admin-index{padding:3px 5px;margin:4px 0 8px;border-radius:6px}
+.admin-index-track{gap:3px}
+.admin-index-track button{padding:5px 8px;border-radius:5px;font-size:11px;min-width:0}
+@media(max-width:650px){.admin-index{padding:2px 3px}.admin-index-track{gap:2px}.admin-index-track button{padding:5px 6px;font-size:10px}}
