@@ -1004,7 +1004,7 @@ FROM news_items WHERE status='published'",conn);
         if(!Configured)return new {items=Array.Empty<object>(),total=0L,page,pages=1L};
         await using var conn=await Open(ct);
         const string regionSql="CASE WHEN i.country_code='EG' THEN 'egyptian' WHEN i.country_code IN ('SA','AE','QA','KW','BH','OM','JO','LB','SY','IQ','YE','PS','MA','DZ','TN','LY','SD','MR','SO','DJ','KM') THEN 'arab' ELSE 'world' END";
-        var where="i.status='published' AND (i.content_kind<>'news' OR @q<>'' OR i.original_published_at >= now()-interval '4 days') AND (@country='' OR i.country_code=@country) AND (@category='' OR i.category=@category) AND (@region='' OR "+regionSql+"=@region) AND (@source='' OR f.name=@source) AND (@q='' OR COALESCE(i.title_ar,i.title,'') ILIKE @pattern OR COALESCE(i.subject,'') ILIKE @pattern OR f.name ILIKE @pattern OR COALESCE(i.author_name,'') ILIKE @pattern)";
+        var where="i.status='published' AND (i.content_kind<>'news' OR @q<>'' OR i.original_published_at >= now()-interval '24 hours') AND (@country='' OR i.country_code=@country) AND (@category='' OR i.category=@category) AND (@region='' OR "+regionSql+"=@region) AND (@source='' OR f.name=@source) AND (@q='' OR COALESCE(i.title_ar,i.title,'') ILIKE @pattern OR COALESCE(i.subject,'') ILIKE @pattern OR f.name ILIKE @pattern OR COALESCE(i.author_name,'') ILIKE @pattern)";
         await using var count=new NpgsqlCommand("SELECT count(*) FROM news_items i JOIN news_feeds f ON f.id=i.feed_id WHERE "+where,conn);
         var args=new Dictionary<string,object>{{"q",(search??"").Trim()},{"pattern","%"+(search??"").Trim().Replace("\\","\\\\").Replace("%","\\%").Replace("_","\\_")+"%"},{"country",country=="all"?"":(country??"").ToUpperInvariant()},{"category",category=="all"?"":(category??"").ToLowerInvariant()},{"region",region=="all"?"":region??""},{"source",source=="all"?"":source??""}};
         foreach(var pair in args)count.Parameters.AddWithValue(pair.Key,pair.Value);
@@ -1099,7 +1099,7 @@ FROM news_items WHERE status='published'",conn);
     public async Task<int> DeleteExpiredNews(CancellationToken ct)
     {
         await using var conn=await Open(ct);
-        await using var cmd=new NpgsqlCommand("DELETE FROM news_items WHERE content_kind='news' AND original_published_at < now() - interval '4 days'",conn);
+        await using var cmd=new NpgsqlCommand("DELETE FROM news_items WHERE content_kind='news' AND original_published_at < now() - interval '24 hours'",conn);
         return await cmd.ExecuteNonQueryAsync(ct);
     }
     public async Task<List<(long Id,string Title,string Source,string Country,string? Context)>> GetPendingAiBatch(int max,CancellationToken ct)
@@ -1270,7 +1270,7 @@ VALUES(@f,@t,@titleAr,@s,@u,@a,@p,@status,@published,(SELECT country_code FROM n
             // Avoid duplicate headlines across feeds without touching already published records.
             await using(var duplicate=new NpgsqlCommand(@"SELECT EXISTS(
 SELECT 1 FROM news_items
-WHERE original_published_at >= now() - interval '4 days'
+WHERE original_published_at >= now() - interval '24 hours'
 AND lower(regexp_replace(title, '[^[:alnum:]ء-ي]+', '', 'g')) =
     lower(regexp_replace(@incoming_title, '[^[:alnum:]ء-ي]+', '', 'g'))
 )",conn))
@@ -1343,7 +1343,7 @@ sealed class NewsCollector : BackgroundService
         await Task.Delay(TimeSpan.FromSeconds(20),stoppingToken);
         while(!stoppingToken.IsCancellationRequested)
         {
-            try { var deleted=await _store.DeleteExpiredNews(stoppingToken);if(deleted>0)_logger.LogInformation("Deleted {Count} news items older than 4 days",deleted);await CollectOnce(stoppingToken); }
+            try { var deleted=await _store.DeleteExpiredNews(stoppingToken);if(deleted>0)_logger.LogInformation("Deleted {Count} news items older than 24 hours",deleted);await CollectOnce(stoppingToken); }
             catch(Exception e) { _logger.LogError(e,"RSS cycle failed"); }
             await Task.Delay(TimeSpan.FromMinutes(15),stoppingToken);
         }
