@@ -420,3 +420,12 @@ button:focus-visible,a:focus-visible{outline:3px solid #f0a63c;outline-offset:3p
 /* Slightly faster regional news ribbons (40s -> 30s), keeping smooth continuous motion. */
 .regional-strip .regional-marquee{animation-duration:30s!important}
 @media(prefers-reduced-motion:reduce){.regional-strip .regional-marquee{animation:none!important}}
+
+/* Instant news search suggestions, matching the existing masthead palette. */
+.instant-search{position:relative;z-index:65}
+.instant-search-results{position:absolute;top:calc(100% + 7px);inset-inline:0;z-index:70;background:#fff;border:1px solid #d6e0ea;border-radius:15px;box-shadow:0 14px 34px #102d4633;max-height:min(55vh,420px);overflow-y:auto;text-align:start;direction:rtl}
+.instant-search-results button{display:flex;flex-direction:column;gap:5px;width:100%;padding:12px 16px;border:0;border-bottom:1px solid #edf1f5;background:#fff;color:#142e43;text-align:start;cursor:pointer;white-space:normal}
+.instant-search-results button:hover,.instant-search-results button:focus-visible{background:#f0f6fa}
+.instant-search-results strong{font-size:14px;line-height:1.6}
+.instant-search-results small{font-size:11px;color:#697c8c}
+.instant-search-results p{margin:0;padding:14px;color:#566a7c;font-size:13px}
