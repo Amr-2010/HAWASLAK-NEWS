@@ -781,16 +781,19 @@ CREATE TABLE IF NOT EXISTS news_images (
     {
         if(!Configured)return Array.Empty<object>();
         await using var conn=await Open(ct);
-        await using var cmd=new NpgsqlCommand(@"SELECT i.id,i.content_kind,COALESCE(NULLIF(i.title_ar,''),i.title),COALESCE(i.rss_excerpt,''),i.original_url,f.name,i.original_published_at
+        await using var cmd=new NpgsqlCommand(@"SELECT i.id,i.content_kind,i.title_ar,COALESCE(i.subject,''),i.original_url,f.name,i.original_published_at,
+CASE WHEN f.license_notes ILIKE '%IMAGE_EMBED_OK%' THEN i.source_image_url ELSE NULL END
 FROM news_items i JOIN news_feeds f ON f.id=i.feed_id
 WHERE i.content_kind IN ('article','investigation','report') AND i.status='published'
+AND NULLIF(btrim(i.title_ar),'') IS NOT NULL
+AND NULLIF(btrim(i.subject),'') IS NOT NULL
 ORDER BY i.original_published_at DESC LIMIT 100",conn);
         await using var r=await cmd.ExecuteReaderAsync(ct);
         var rows=new List<object>();
         while(await r.ReadAsync(ct))rows.Add(new {
             id="feed-"+r.GetInt64(0),kind=r.GetString(1),title=r.GetString(2),
             excerpt=r.GetString(3),body="",originalUrl=r.GetString(4),
-            source=r.GetString(5),createdAt=r.GetDateTime(6),external=true
+            source=r.GetString(5),createdAt=r.GetDateTime(6),coverUrl=r.IsDBNull(7)?null:r.GetString(7),external=true
         });
         return rows;
     }
@@ -985,7 +988,9 @@ FROM news_items WHERE status='published'",conn);
 WHERE i.status IN ('pending','published')
 AND (NULLIF(btrim(i.title_ar),'') IS NULL OR NULLIF(btrim(i.subject),'') IS NULL)
 AND (i.ai_processed_at IS NULL OR i.ai_processed_at < now() - interval '1 day')
-ORDER BY CASE WHEN i.status='published' AND NULLIF(btrim(i.subject),'') IS NULL THEN 0 WHEN NULLIF(btrim(i.title_ar),'') IS NULL THEN 1 ELSE 2 END, i.imported_at DESC LIMIT @max",conn);
+ORDER BY CASE WHEN i.content_kind IN ('article','investigation','report') THEN 0 ELSE 1 END,
+CASE WHEN NULLIF(btrim(i.title_ar),'') IS NULL THEN 0 ELSE 1 END,
+i.imported_at DESC LIMIT @max",conn);
         cmd.Parameters.AddWithValue("max",Math.Clamp(max,1,10));
         await using var reader=await cmd.ExecuteReaderAsync(ct);
         while(await reader.ReadAsync(ct)) rows.Add((reader.GetInt64(0),reader.GetString(1),reader.GetString(2),reader.GetString(3).Trim(),reader.IsDBNull(4)?null:reader.GetString(4)));
