@@ -486,3 +486,14 @@ button:focus-visible,a:focus-visible{outline:3px solid #f0a63c;outline-offset:3p
 .admin-index-track{gap:3px}
 .admin-index-track button{padding:5px 8px;border-radius:5px;font-size:11px;min-width:0}
 @media(max-width:650px){.admin-index{padding:2px 3px}.admin-index-track{gap:2px}.admin-index-track button{padding:5px 6px;font-size:10px}}
+
+/* Admin quick index: medium-size floating rail on the right, centered vertically. */
+.admin-index{position:fixed;top:50%;right:8px;left:auto;transform:translateY(-50%);z-index:95;width:auto;max-width:min(112px,28vw);max-height:70vh;margin:0;padding:6px 4px;border-radius:12px;background:#193b60;box-shadow:0 5px 18px #071d3460}
+.admin-index-track{display:flex;flex-direction:column;align-items:stretch;gap:5px;overflow-y:auto;overflow-x:hidden;max-height:calc(70vh - 14px);white-space:normal;scrollbar-width:thin}
+.admin-index-track button{display:block;width:100%;flex:0 0 auto;padding:8px 7px;font-size:12px;line-height:1.25;text-align:center;white-space:nowrap;border-radius:7px}
+#admin-stats,#admin-sources,#admin-ai,#admin-ads,#admin-settings,#admin-publishing,#admin-articles,#admin-users{scroll-margin-top:18px}
+@media(max-width:650px){
+ .admin-index{position:fixed;top:50%;right:4px;left:auto;transform:translateY(-50%);width:72px;max-width:22vw;max-height:64vh;margin:0;padding:4px 3px;border-radius:9px}
+ .admin-index-track{flex-direction:column;gap:4px;max-height:calc(64vh - 10px);overflow-y:auto;overflow-x:hidden}
+ .admin-index-track button{padding:7px 3px;font-size:10px;line-height:1.25;white-space:nowrap}
+}
