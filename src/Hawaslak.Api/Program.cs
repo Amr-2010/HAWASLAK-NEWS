@@ -32,6 +32,9 @@ app.MapPost("/api/admin/ads",async (HttpRequest request,NewsStore store,AdInput 
  return Results.Ok(new {id=await store.SaveAd(input,ct)});
 });
 app.MapDelete("/api/admin/ads/{id:long}",async (long id,HttpRequest request,NewsStore store,CancellationToken ct)=>Authorized(request)?Results.Ok(new {deleted=await store.DeleteAd(id,ct)}):Results.Unauthorized());
+// Explicit, administrator-triggered one-day retention cleanup. Never touches other tables.
+app.MapGet("/api/admin/news/cleanup-preview",async (HttpRequest request,NewsStore store,CancellationToken ct)=>Authorized(request)?Results.Ok(await store.PreviewNewsCleanup(ct)):Results.Unauthorized());
+app.MapPost("/api/admin/news/cleanup-20261121",async (HttpRequest request,NewsStore store,CancellationToken ct)=>Authorized(request)?Results.Ok(await store.CleanupNewsExceptNovember21(ct)):Results.Unauthorized());
 app.MapGet("/api/news/counts", async (NewsStore store,CancellationToken ct)=>Results.Ok(await store.PublishedNewsCounts(ct)));
 app.MapGet("/api/news/filters", async (NewsStore store,CancellationToken ct)=>Results.Ok(await store.NewsFilters(ct)));
 app.MapGet("/api/news", async (NewsStore store, string? country, string? category, string? region, string? source, string? q, int? page, int? pageSize, CancellationToken ct) => Results.Ok(await store.NewsPage(country,category,region,source,q,page??1,pageSize??40,ct)));
@@ -229,6 +232,25 @@ record FeedItem(string Title, string Url, string? Author, DateTimeOffset Publish
 
 sealed class NewsStore
 {
+    public async Task<object> PreviewNewsCleanup(CancellationToken ct)
+    {
+        await using var conn=await Open(ct);
+        await using var cmd=new NpgsqlCommand(@"SELECT COUNT(*) FILTER (WHERE (original_published_at AT TIME ZONE 'Africa/Cairo')::date=DATE '2026-11-21'),
+COUNT(*) FILTER (WHERE (original_published_at AT TIME ZONE 'Africa/Cairo')::date<>DATE '2026-11-21')
+FROM news_items",conn);
+        await using var r=await cmd.ExecuteReaderAsync(ct);await r.ReadAsync(ct);
+        return new {keep=r.GetInt64(0),delete=r.GetInt64(1),date="2026-11-21",timeZone="Africa/Cairo"};
+    }
+    public async Task<object> CleanupNewsExceptNovember21(CancellationToken ct)
+    {
+        await using var conn=await Open(ct);
+        await using var tx=await conn.BeginTransactionAsync(ct);
+        await using var cmd=new NpgsqlCommand(@"DELETE FROM news_items WHERE (original_published_at AT TIME ZONE 'Africa/Cairo')::date <> DATE '2026-11-21'",conn,tx);
+        var deleted=await cmd.ExecuteNonQueryAsync(ct);
+        await tx.CommitAsync(ct);
+        return new {deleted,date="2026-11-21",table="news_items"};
+    }
+
     public async Task VisitorHeartbeat(Guid visitorId,CancellationToken ct)
     {
         if(!Configured)return;
