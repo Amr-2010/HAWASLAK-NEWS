@@ -328,6 +328,13 @@ VALUES
 ('BBC Formula 1','GB','https://feeds.bbci.co.uk/sport/formula1/rss.xml',true,false,'Sports RSS discovery only'),
 ('BBC Arabic','GB','https://feeds.bbci.co.uk/arabic/rss.xml',true,false,'Arabic RSS discovery only')
 ON CONFLICT(feed_url) DO NOTHING;
+-- Long-form journalism discovery sources. Headlines and original links only.
+-- Full text and photographs require explicit publisher permissions.
+INSERT INTO news_feeds(name,country_code,feed_url,enabled,auto_publish_allowed,license_notes)
+VALUES
+('ProPublica Investigations','US','https://www.propublica.org/feeds/propublica/main',true,false,'Investigative journalism discovery; no full-text republication rights'),
+('Mada Masr English Features','EG','https://www.madamasr.com/en/feed/',true,false,'Egyptian analysis and features discovery; no full-text republication rights')
+ON CONFLICT(feed_url) DO NOTHING;
 -- Curated discovery candidates: each feed is monitored independently; publishing remains manual until rights are verified.
 INSERT INTO news_feeds(name,country_code,feed_url,enabled,auto_publish_allowed,license_notes)
 VALUES
@@ -1078,6 +1085,7 @@ VALUES(@n,@c,@u,@a,@l) ON CONFLICT(feed_url) DO UPDATE SET name=EXCLUDED.name,co
         if(url.Contains("/category/culture/",StringComparison.OrdinalIgnoreCase)||url.Contains("SectionID=94",StringComparison.OrdinalIgnoreCase))return "literature";
         if(url.Contains("SectionID=328",StringComparison.OrdinalIgnoreCase))return "technology";
         if(url.Contains("SectionID=298",StringComparison.OrdinalIgnoreCase)||url.Contains("SectionID=13",StringComparison.OrdinalIgnoreCase))return "sports";
+        if(url.Contains("propublica.org/feeds/",StringComparison.OrdinalIgnoreCase)||url.Contains("madamasr.com/en/feed/",StringComparison.OrdinalIgnoreCase))return "general";
         if(url.Contains("/category/investigations-en/",StringComparison.OrdinalIgnoreCase))return "crime";
         return null;
     }
