@@ -354,7 +354,7 @@ body{padding-bottom:75px}
 .fixed-data-group>span{display:inline-flex;align-items:center;gap:5px}
 .fixed-data-group b{color:#fff}
 .fixed-data-strip .data-disclaimer{position:relative;z-index:2;flex:0 0 auto;background:#102c40;padding:0 7px;color:#c9d5e0;font-size:9px}
-@keyframes fixed-data-scroll{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+@keyframes fixed-data-scroll{from{transform:translateX(-50%)}to{transform:translateX(0)}}
 body{padding-bottom:78px!important}
 .ticker-modal-backdrop{position:fixed;inset:0;z-index:1200;background:#071927c9;display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box}
 .ticker-modal{background:#fff;color:#193146;border-radius:15px;max-width:760px;width:100%;max-height:86dvh;overflow:auto;box-sizing:border-box;padding:22px;direction:rtl;box-shadow:0 12px 45px #0005}
