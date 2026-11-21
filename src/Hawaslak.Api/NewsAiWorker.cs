@@ -46,7 +46,7 @@ sealed class NewsAiWorker : BackgroundService
         finally{_gate.Release();}
     }
     private async Task<int> PublishIfEnabled(CancellationToken ct) =>
-        Environment.GetEnvironmentVariable("AI_AUTO_PUBLISH")?.Equals("true",StringComparison.OrdinalIgnoreCase)==true
+        !Environment.GetEnvironmentVariable("AI_AUTO_PUBLISH")?.Equals("false",StringComparison.OrdinalIgnoreCase)==true
         ? await _store.AutoPublishApproved(ct) : 0;
 
     protected override async Task ExecuteAsync(CancellationToken ct)
@@ -54,7 +54,7 @@ sealed class NewsAiWorker : BackgroundService
         try{await Task.Delay(TimeSpan.FromSeconds(45),ct);}catch(OperationCanceledException){return;}
         while(!ct.IsCancellationRequested)
         {
-            if(Environment.GetEnvironmentVariable("AI_AUTO_PREPARE")?.Equals("true",StringComparison.OrdinalIgnoreCase)==true)
+            if(!Environment.GetEnvironmentVariable("AI_AUTO_PREPARE")?.Equals("false",StringComparison.OrdinalIgnoreCase)==true)
             {
                 try{await ProcessBatch(10,ct);}
                 catch(OperationCanceledException) when(ct.IsCancellationRequested){break;}
