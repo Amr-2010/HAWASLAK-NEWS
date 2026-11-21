@@ -60,7 +60,7 @@ sealed class NewsAiWorker : BackgroundService
                 catch(OperationCanceledException) when(ct.IsCancellationRequested){break;}
                 catch(Exception ex){_logger.LogWarning("AI batch encountered a temporary failure: {Message}",ex.Message);}
             }
-            try{await Task.Delay(TimeSpan.FromMinutes(5),ct);}catch(OperationCanceledException){break;}
+            try{await Task.Delay(TimeSpan.FromMinutes(30),ct);}catch(OperationCanceledException){break;}
         }
     }
 }
