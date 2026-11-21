@@ -297,6 +297,26 @@ VALUES
 ('BBC Entertainment','GB','https://feeds.bbci.co.uk/news/entertainment_and_arts/rss.xml',true,false,'RSS headline discovery; retain attribution and original link'),
 ('BBC Sport','GB','https://feeds.bbci.co.uk/sport/rss.xml',true,false,'RSS headline discovery; retain attribution and original link')
 ON CONFLICT(feed_url) DO NOTHING;
+-- Expanded discovery from independently maintained RSS directories (Nov 2026).
+-- Feeds only provide discovery metadata; no implied rights to full article text or images.
+INSERT INTO news_feeds(name,country_code,feed_url,enabled,auto_publish_allowed,license_notes)
+VALUES
+('BBC World Africa','GB','https://feeds.bbci.co.uk/news/world/africa/rss.xml',true,false,'Discovery only; BBC world region'),
+('BBC World Asia','GB','https://feeds.bbci.co.uk/news/world/asia/rss.xml',true,false,'Discovery only; BBC world region'),
+('BBC World Europe','GB','https://feeds.bbci.co.uk/news/world/europe/rss.xml',true,false,'Discovery only; BBC world region'),
+('BBC World Middle East','GB','https://feeds.bbci.co.uk/news/world/middle_east/rss.xml',true,false,'Discovery only; BBC world region'),
+('BBC World Americas','GB','https://feeds.bbci.co.uk/news/world/us_and_canada/rss.xml',true,false,'Discovery only; BBC world region'),
+('BBC World Latin America','GB','https://feeds.bbci.co.uk/news/world/latin_america/rss.xml',true,false,'Discovery only; BBC world region'),
+('Politico Europe','BE','https://www.politico.eu/feed/',true,false,'Discovery only; verify publisher attribution'),
+('Le Monde English','FR','https://www.lemonde.fr/en/rss/une.xml',true,false,'Discovery only; verify publisher attribution'),
+('Der Spiegel International','DE','https://www.spiegel.de/international/index.rss',true,false,'Discovery only; verify publisher attribution'),
+('The Independent UK','GB','https://www.independent.co.uk/rss',true,false,'Discovery only; verify publisher attribution'),
+('Associated Press Top Stories','US','https://flipboard.com/@associatedpress/top-stories-u7govdf1z.rss',true,false,'AP publisher Flipboard discovery; retain AP attribution'),
+('Associated Press International','US','https://flipboard.com/@associatedpress/international-news-miluvhmaz.rss',true,false,'AP publisher Flipboard discovery; retain AP attribution'),
+('Associated Press Technology','US','https://flipboard.com/@associatedpress/technology-uvt65hdqz.rss',true,false,'AP publisher Flipboard discovery; retain AP attribution'),
+('Associated Press Health','US','https://flipboard.com/@associatedpress/health-l59qepnvz.rss',true,false,'AP publisher Flipboard discovery; retain AP attribution'),
+('Associated Press Sports','US','https://flipboard.com/@associatedpress/sports-uv5v9mtcz.rss',true,false,'AP publisher Flipboard discovery; retain AP attribution')
+ON CONFLICT(feed_url) DO NOTHING;
 -- Curated discovery candidates: each feed is monitored independently; publishing remains manual until rights are verified.
 INSERT INTO news_feeds(name,country_code,feed_url,enabled,auto_publish_allowed,license_notes)
 VALUES
