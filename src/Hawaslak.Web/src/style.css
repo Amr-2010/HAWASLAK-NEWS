@@ -509,3 +509,9 @@ button:focus-visible,a:focus-visible{outline:3px solid #f0a63c;outline-offset:3p
 .ad-upload-preview img{display:block;max-width:min(100%,320px);max-height:140px;object-fit:contain;border-radius:6px}
 .ad-upload-preview span{font-size:13px;color:#23435d}
 .ad-upload-preview button{padding:6px 10px}
+
+/* Sidebar campaign is part of the news sidebar, never the footer. */
+.front-sidebar>.ad-sidebar{display:flex;flex-direction:column;width:100%;max-width:100%;margin:0;padding:12px;box-sizing:border-box;gap:10px}
+.front-sidebar>.ad-sidebar .ad-tile{width:100%;max-width:100%;box-sizing:border-box}
+.front-sidebar>.ad-sidebar .ad-tile img{width:100%;max-height:320px;object-fit:contain}
+@media(max-width:700px){.front-sidebar>.ad-sidebar{padding:10px}.front-sidebar>.ad-sidebar .ad-tile img{max-height:260px}}
