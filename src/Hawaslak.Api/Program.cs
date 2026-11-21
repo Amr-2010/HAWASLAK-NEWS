@@ -7,6 +7,7 @@ using Npgsql;
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddHttpClient("rss", c => { c.Timeout = TimeSpan.FromSeconds(15); c.DefaultRequestHeaders.UserAgent.ParseAdd("HawaslakNews/0.2 (+news aggregator; contact site administrator)"); });
 builder.Services.AddSingleton<NewsStore>();
+builder.Services.AddOutputCache();
 builder.Services.AddHttpClient("ai", c => c.Timeout = TimeSpan.FromSeconds(25));
 builder.Services.AddSingleton<NewsAiService>();
 builder.Services.AddSingleton<NewsAiWorker>();
@@ -16,13 +17,14 @@ builder.Services.AddHostedService(sp => sp.GetRequiredService<NewsCollector>());
 var app = builder.Build();
 app.UseDefaultFiles();
 app.UseStaticFiles();
+app.UseOutputCache();
 app.MapGet("/health", () => Results.Ok(new { status = "ok", app = "HAWASLAK NEWS" }));
 app.MapPost("/api/visitors/heartbeat",async (VisitorHeartbeat input,NewsStore store,CancellationToken ct)=>{
  if(!Guid.TryParse(input.VisitorId,out var visitorId))return Results.BadRequest(new {error="Invalid anonymous visitor ID"});
  await store.VisitorHeartbeat(visitorId,ct);return Results.NoContent();
 });
-app.MapGet("/api/visitors/stats",async (NewsStore store,CancellationToken ct)=>Results.Ok(await store.VisitorStats(ct)));
-app.MapGet("/api/ads",async (NewsStore store,CancellationToken ct)=>Results.Ok(await store.PublicAds(ct)));
+app.MapGet("/api/visitors/stats",async (NewsStore store,CancellationToken ct)=>Results.Ok(await store.VisitorStats(ct))).CacheOutput(TimeSpan.FromSeconds(60));
+app.MapGet("/api/ads",async (NewsStore store,CancellationToken ct)=>Results.Ok(await store.PublicAds(ct))).CacheOutput(TimeSpan.FromSeconds(60));
 app.MapGet("/api/admin/ads",async (HttpRequest request,NewsStore store,CancellationToken ct)=>Authorized(request)?Results.Ok(await store.AdminAds(ct)):Results.Unauthorized());
 app.MapPost("/api/admin/ads",async (HttpRequest request,NewsStore store,AdInput input,CancellationToken ct)=>{
  if(!Authorized(request))return Results.Unauthorized();
@@ -35,9 +37,9 @@ app.MapDelete("/api/admin/ads/{id:long}",async (long id,HttpRequest request,News
 // Explicit, administrator-triggered one-day retention cleanup. Never touches other tables.
 app.MapGet("/api/admin/news/cleanup-preview",async (HttpRequest request,NewsStore store,CancellationToken ct)=>Authorized(request)?Results.Ok(await store.PreviewNewsCleanup(ct)):Results.Unauthorized());
 app.MapPost("/api/admin/news/cleanup-20261121",async (HttpRequest request,NewsStore store,CancellationToken ct)=>Authorized(request)?Results.Ok(await store.CleanupNewsExceptNovember21(ct)):Results.Unauthorized());
-app.MapGet("/api/news/counts", async (NewsStore store,CancellationToken ct)=>Results.Ok(await store.PublishedNewsCounts(ct)));
-app.MapGet("/api/news/filters", async (NewsStore store,CancellationToken ct)=>Results.Ok(await store.NewsFilters(ct)));
-app.MapGet("/api/news", async (NewsStore store, string? country, string? category, string? region, string? source, string? q, int? page, int? pageSize, CancellationToken ct) => Results.Ok(await store.NewsPage(country,category,region,source,q,page??1,pageSize??40,ct)));
+app.MapGet("/api/news/counts", async (NewsStore store,CancellationToken ct)=>Results.Ok(await store.PublishedNewsCounts(ct))).CacheOutput(TimeSpan.FromSeconds(90));
+app.MapGet("/api/news/filters", async (NewsStore store,CancellationToken ct)=>Results.Ok(await store.NewsFilters(ct))).CacheOutput(TimeSpan.FromSeconds(300));
+app.MapGet("/api/news", async (NewsStore store, string? country, string? category, string? region, string? source, string? q, int? page, int? pageSize, CancellationToken ct) => Results.Ok(await store.NewsPage(country,category,region,source,q,page??1,pageSize??40,ct))).CacheOutput(TimeSpan.FromSeconds(60));
 app.MapPost("/api/admin/login", async (AdminLogin input, NewsStore store, CancellationToken ct) =>
 {
     if(string.IsNullOrWhiteSpace(input.Username)||string.IsNullOrWhiteSpace(input.Password))return Results.Unauthorized();
