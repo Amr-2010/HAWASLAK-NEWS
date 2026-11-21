@@ -819,9 +819,7 @@ FROM news_items WHERE status='published'",conn);
         var args=new Dictionary<string,object>{{"q",(search??"").Trim()},{"pattern","%"+(search??"").Trim().Replace("\\","\\\\").Replace("%","\\%").Replace("_","\\_")+"%"},{"country",country=="all"?"":(country??"").ToUpperInvariant()},{"category",category=="all"?"":(category??"").ToLowerInvariant()},{"region",region=="all"?"":region??""},{"source",source=="all"?"":source??""}};
         foreach(var pair in args)count.Parameters.AddWithValue(pair.Key,pair.Value);
         var total=Convert.ToInt64(await count.ExecuteScalarAsync(ct));
-        var sql=@"SELECT i.id,COALESCE(NULLIF(i.title_ar,''),i.title),i.subject,f.name,i.original_url,i.author_name,i.original_published_at,i.image_count,i.country_code,i.category,"+regionSql+@",CASE WHEN f.license_notes ILIKE '%IMAGE_EMBED_OK%' THEN i.source_image_url ELSE NULL END FROM news_items i JOIN news_feeds f ON f.id=i.feed_id WHERE "+where+" ORDER BY
-  -- Freshness-first editorial ranking with gentle source diversity, similar in purpose
-  -- to multi-publisher aggregators. No user profiling or change to public API shape.
+        var sql=@"SELECT i.id,COALESCE(NULLIF(i.title_ar,''),i.title),i.subject,f.name,i.original_url,i.author_name,i.original_published_at,i.image_count,i.country_code,i.category,"+regionSql+@",CASE WHEN f.license_notes ILIKE '%IMAGE_EMBED_OK%' THEN i.source_image_url ELSE NULL END FROM news_items i JOIN news_feeds f ON f.id=i.feed_id WHERE "+where+@" ORDER BY
   (EXTRACT(EPOCH FROM i.original_published_at) / 3600.0
    - LEAST(12.0, (ROW_NUMBER() OVER (
        PARTITION BY i.feed_id ORDER BY i.original_published_at DESC,i.id DESC
