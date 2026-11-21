@@ -382,6 +382,10 @@ UPDATE news_items SET content_kind='investigation'
 WHERE content_kind='news' AND feed_id IN (SELECT id FROM news_feeds WHERE feed_url='https://www.propublica.org/feeds/propublica/main');
 UPDATE news_items SET content_kind='article'
 WHERE content_kind='news' AND feed_id IN (SELECT id FROM news_feeds WHERE feed_url='https://www.madamasr.com/en/feed/');
+-- Publish only source-attributed editorial link previews, not full third-party articles.
+UPDATE news_items SET status='published',published_at=COALESCE(published_at,now())
+WHERE content_kind IN ('article','investigation','report') AND status='pending'
+AND original_url LIKE 'https://%';
 ALTER TABLE news_items ADD COLUMN IF NOT EXISTS country_code char(2);
 ALTER TABLE news_items ADD COLUMN IF NOT EXISTS category text NOT NULL DEFAULT 'general';
 UPDATE news_items SET country_code = f.country_code FROM news_feeds f WHERE news_items.feed_id=f.id AND news_items.country_code IS NULL;
@@ -1159,8 +1163,8 @@ AND lower(regexp_replace(title, '[^[:alnum:]ء-ي]+', '', 'g')) =
             // Automatically publish Arabic-language source headlines only, with a valid HTTPS publisher link.
             // Foreign-language headlines remain pending for editorial/AI preparation.
             var publishArabic=LooksArabic(item.Title)&&Uri.TryCreate(item.Url,UriKind.Absolute,out var sourceUri)&&sourceUri.Scheme==Uri.UriSchemeHttps;
-            cmd.Parameters.AddWithValue("status",publishArabic?"published":"pending");
-            cmd.Parameters.AddWithValue("published",publishArabic?DateTime.UtcNow:DBNull.Value);
+            cmd.Parameters.AddWithValue("status",(contentKind!="news"||publishArabic)?"published":"pending");
+            cmd.Parameters.AddWithValue("published",(contentKind!="news"||publishArabic)?DateTime.UtcNow:DBNull.Value);
             total+=await cmd.ExecuteNonQueryAsync(ct);
         }
         return total;
