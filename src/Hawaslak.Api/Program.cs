@@ -317,6 +317,17 @@ VALUES
 ('Associated Press Health','US','https://flipboard.com/@associatedpress/health-l59qepnvz.rss',true,false,'AP publisher Flipboard discovery; retain AP attribution'),
 ('Associated Press Sports','US','https://flipboard.com/@associatedpress/sports-uv5v9mtcz.rss',true,false,'AP publisher Flipboard discovery; retain AP attribution')
 ON CONFLICT(feed_url) DO NOTHING;
+-- Dedicated political and sports coverage; preserve original publisher attribution.
+INSERT INTO news_feeds(name,country_code,feed_url,enabled,auto_publish_allowed,license_notes)
+VALUES
+('BBC Politics','GB','https://feeds.bbci.co.uk/news/politics/rss.xml',true,false,'Politics RSS discovery only'),
+('BBC Football','GB','https://feeds.bbci.co.uk/sport/football/rss.xml',true,false,'Football RSS discovery only'),
+('BBC Premier League','GB','https://feeds.bbci.co.uk/sport/football/premier-league/rss.xml',true,false,'Football RSS discovery only'),
+('BBC Champions League','GB','https://feeds.bbci.co.uk/sport/football/champions-league/rss.xml',true,false,'Football RSS discovery only'),
+('BBC Tennis','GB','https://feeds.bbci.co.uk/sport/tennis/rss.xml',true,false,'Sports RSS discovery only'),
+('BBC Formula 1','GB','https://feeds.bbci.co.uk/sport/formula1/rss.xml',true,false,'Sports RSS discovery only'),
+('BBC Arabic','GB','https://feeds.bbci.co.uk/arabic/rss.xml',true,false,'Arabic RSS discovery only')
+ON CONFLICT(feed_url) DO NOTHING;
 -- Curated discovery candidates: each feed is monitored independently; publishing remains manual until rights are verified.
 INSERT INTO news_feeds(name,country_code,feed_url,enabled,auto_publish_allowed,license_notes)
 VALUES
@@ -1056,6 +1067,7 @@ VALUES(@n,@c,@u,@a,@l) ON CONFLICT(feed_url) DO UPDATE SET name=EXCLUDED.name,co
         await using var cmd=new NpgsqlCommand("SELECT feed_url FROM news_feeds WHERE id=@id",conn);
         cmd.Parameters.AddWithValue("id",feedId);
         var url=(await cmd.ExecuteScalarAsync(ct))?.ToString()??"";
+        if(url.Contains("feeds.bbci.co.uk/news/politics/",StringComparison.OrdinalIgnoreCase))return "politics";
         if(url.Contains("feeds.bbci.co.uk/sport/",StringComparison.OrdinalIgnoreCase)||url.Contains("skysports.com/rss/",StringComparison.OrdinalIgnoreCase)||url.Contains("espn.com/espn/rss/",StringComparison.OrdinalIgnoreCase))return "sports";
         if(url.Contains("SectionID=328",StringComparison.OrdinalIgnoreCase))return "technology";
         if(url.Contains("SectionID=298",StringComparison.OrdinalIgnoreCase)||url.Contains("rss/13.aspx",StringComparison.OrdinalIgnoreCase))return "sports";
@@ -1122,12 +1134,12 @@ AND lower(regexp_replace(title, '[^[:alnum:]ء-ي]+', '', 'g')) =
         var t=title.ToLowerInvariant();
         if (new[]{"جريمة","جرائم","قتل","جنايات","النيابة العامة","المحكمة الجنائية","محكمة الجنايات","حبس المتهم","القبض على","سرقة","مخدرات","حكم قضائي","crime","criminal","murder","arrested","prosecution","sentenced","court verdict"}.Any(t.Contains)) return "crime";
         if (new[]{"رواية","روايات","شعر","شاعر","أدب","أديب","كتاب جديد","إصدار أدبي","قصة قصيرة","قصص قصيرة","literature","novel","poetry","poet","literary","book fair"}.Any(t.Contains)) return "literature";
-        if (new[]{"football","soccer","match","league","رياضة","مباراة","الدوري","كرة القدم"}.Any(t.Contains)) return "sports";
+        if (new[]{"football","soccer","match","league","رياضة","مباراة","الدوري","كرة القدم","الأهلي","الزمالك","منتخب مصر","بطولة","هدف","أهداف","كأس","تنس","كرة السلة","سباق","premier league","champions league","fifa","uefa","tennis","formula 1","f1","basketball","goalkeeper","striker"}.Any(t.Contains)) return "sports";
         if (new[]{"economy","market","stocks","business","اقتصاد","بورصة","أسعار","استثمار"}.Any(t.Contains)) return "economy";
         if (new[]{"technology","ai ","software","تكنولوجيا","تقنية","ذكاء اصطناعي"}.Any(t.Contains)) return "technology";
         if (new[]{"health","medical","hospital","صحة","طب","مستشفى"}.Any(t.Contains)) return "health";
         if (new[]{"education","school","university","تعليم","جامعة","مدرسة"}.Any(t.Contains)) return "education";
-        if (new[]{"election","president","government","parliament","انتخابات","رئيس","حكومة","برلمان"}.Any(t.Contains)) return "politics";
+        if (new[]{"election","president","government","parliament","انتخابات","رئيس","حكومة","برلمان","مجلس النواب","مجلس الشيوخ","وزير","وزارة الخارجية","الدبلوماسية","مفاوضات","قمة سياسية","البيت الأبيض","الكونجرس","تصويت","حزب سياسي","politics","political","minister","diplomacy","diplomatic","congress","senate","cabinet","sanctions","ceasefire","summit","legislation"}.Any(t.Contains)) return "politics";
         if (new[]{"cinema","film","music","سينما","فيلم","موسيقى","فن"}.Any(t.Contains)) return "arts";
         return "general";
     }
