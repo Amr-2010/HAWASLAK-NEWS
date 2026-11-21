@@ -497,3 +497,10 @@ button:focus-visible,a:focus-visible{outline:3px solid #f0a63c;outline-offset:3p
  .admin-index-track{flex-direction:column;gap:4px;max-height:calc(64vh - 10px);overflow-y:auto;overflow-x:hidden}
  .admin-index-track button{padding:7px 3px;font-size:10px;line-height:1.25;white-space:nowrap}
 }
+
+/* Admin index is a full-width horizontal bar, not a floating overlay. */
+.admin-index{position:sticky;top:0;right:auto;left:auto;transform:none;display:block;width:100%;max-width:100%;max-height:none;margin:8px 0 12px;padding:6px;box-sizing:border-box;border-radius:9px}
+.admin-index-track{display:flex;flex-direction:row;align-items:center;gap:5px;overflow-x:auto;overflow-y:hidden;max-height:none;white-space:nowrap}
+.admin-index-track button{width:auto;flex:0 0 auto;padding:7px 10px;font-size:12px;white-space:nowrap}
+.ad-notice{padding:10px 12px;border-radius:8px;background:#e9f4ff;border:1px solid #9dc4e9;color:#143d63;overflow-wrap:anywhere}
+@media(max-width:650px){.admin-index{position:sticky;top:0;right:auto;left:auto;transform:none;width:100%;max-width:100%;max-height:none;margin:5px 0 10px;padding:4px}.admin-index-track{flex-direction:row;overflow-x:auto;overflow-y:hidden;max-height:none;gap:4px}.admin-index-track button{width:auto;padding:6px 8px;font-size:11px}}
