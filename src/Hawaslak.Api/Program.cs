@@ -17,6 +17,11 @@ var app = builder.Build();
 app.UseDefaultFiles();
 app.UseStaticFiles();
 app.MapGet("/health", () => Results.Ok(new { status = "ok", app = "HAWASLAK NEWS" }));
+app.MapPost("/api/visitors/heartbeat",async (VisitorHeartbeat input,NewsStore store,CancellationToken ct)=>{
+ if(!Guid.TryParse(input.VisitorId,out var visitorId))return Results.BadRequest(new {error="Invalid anonymous visitor ID"});
+ await store.VisitorHeartbeat(visitorId,ct);return Results.NoContent();
+});
+app.MapGet("/api/visitors/stats",async (NewsStore store,CancellationToken ct)=>Results.Ok(await store.VisitorStats(ct)));
 app.MapGet("/api/ads",async (NewsStore store,CancellationToken ct)=>Results.Ok(await store.PublicAds(ct)));
 app.MapGet("/api/admin/ads",async (HttpRequest request,NewsStore store,CancellationToken ct)=>Authorized(request)?Results.Ok(await store.AdminAds(ct)):Results.Unauthorized());
 app.MapPost("/api/admin/ads",async (HttpRequest request,NewsStore store,AdInput input,CancellationToken ct)=>{
@@ -212,6 +217,7 @@ bool Authorized(HttpRequest request)=>SessionUser(request)!=null;
 record AdminLogin(string Username,string Password);
 record NewAdmin(string Username,string Password);
 record SiteCategory(string Id,string Ar,string En,string Icon);
+record VisitorHeartbeat(string VisitorId);
 record AdInput(long? Id,string Title,string? ImageUrl,string? TargetUrl,string Placement,bool Enabled,DateTimeOffset? StartsAt,DateTimeOffset? EndsAt);
 record SiteSettingsInput(string? LogoUrl,List<SiteCategory> Categories,string? BannerTitle=null,string? BannerSubtitle=null,string? BannerImageUrl=null,string? BannerLink=null,string? BannerButtonText=null);
 record FeatureInput(long? Id,string Kind,string Title,string Body,string? Excerpt,string? CoverUrl,bool Published);
@@ -223,6 +229,25 @@ record FeedItem(string Title, string Url, string? Author, DateTimeOffset Publish
 
 sealed class NewsStore
 {
+    public async Task VisitorHeartbeat(Guid visitorId,CancellationToken ct)
+    {
+        if(!Configured)return;
+        await using var conn=await Open(ct);
+        await using var cmd=new NpgsqlCommand(@"INSERT INTO news_visitors(visitor_id) VALUES(@id) ON CONFLICT(visitor_id) DO UPDATE SET last_seen=now();
+INSERT INTO news_visitor_days(visitor_id,visit_date) VALUES(@id,(now() AT TIME ZONE 'Africa/Cairo')::date) ON CONFLICT DO NOTHING;",conn);
+        cmd.Parameters.AddWithValue("id",visitorId);await cmd.ExecuteNonQueryAsync(ct);
+    }
+    public async Task<object> VisitorStats(CancellationToken ct)
+    {
+        if(!Configured)return new {online=0L,today=0L,total=0L};
+        await using var conn=await Open(ct);
+        await using var cmd=new NpgsqlCommand(@"SELECT (SELECT count(*) FROM news_visitors WHERE last_seen >= now()-interval '5 minutes'),
+(SELECT count(*) FROM news_visitor_days WHERE visit_date=(now() AT TIME ZONE 'Africa/Cairo')::date),
+(SELECT count(*) FROM news_visitors)",conn);
+        await using var r=await cmd.ExecuteReaderAsync(ct);await r.ReadAsync(ct);
+        return new {online=r.GetInt64(0),today=r.GetInt64(1),total=r.GetInt64(2)};
+    }
+
     public async Task<object> PublicAds(CancellationToken ct)
     {
         if(!Configured)return Array.Empty<object>();
@@ -478,6 +503,10 @@ INSERT INTO news_feeds(name,country_code,feed_url,enabled,auto_publish_allowed,l
 ('AP via Google News','US','https://news.google.com/rss/search?q=when:24h+site:apnews.com&hl=en-US&gl=US&ceid=US:en',true,false,'Google News discovery, NOT an AP licensed feed; link only')
 ON CONFLICT(feed_url) DO NOTHING;
 CREATE TABLE IF NOT EXISTS site_settings (key text PRIMARY KEY,value text NOT NULL);
+CREATE TABLE IF NOT EXISTS news_visitors (visitor_id uuid PRIMARY KEY,first_seen timestamptz NOT NULL DEFAULT now(),last_seen timestamptz NOT NULL DEFAULT now());
+CREATE INDEX IF NOT EXISTS news_visitors_last_seen_idx ON news_visitors(last_seen);
+CREATE TABLE IF NOT EXISTS news_visitor_days (visitor_id uuid NOT NULL,visit_date date NOT NULL,PRIMARY KEY(visitor_id,visit_date));
+CREATE INDEX IF NOT EXISTS news_visitor_days_date_idx ON news_visitor_days(visit_date);
 CREATE TABLE IF NOT EXISTS news_ads (id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,title text NOT NULL,image_url text NOT NULL DEFAULT '',target_url text NOT NULL DEFAULT '',placement text NOT NULL,enabled boolean NOT NULL DEFAULT false,starts_at timestamptz,ends_at timestamptz,created_at timestamptz NOT NULL DEFAULT now());
 -- Verified Egyptian RSS discovery endpoints, November 2026 (independently reported active).
 INSERT INTO news_feeds(name,country_code,feed_url,enabled,auto_publish_allowed,license_notes) VALUES
