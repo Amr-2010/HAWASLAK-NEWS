@@ -376,6 +376,11 @@ CREATE TABLE IF NOT EXISTS news_items (
  status text NOT NULL CHECK(status IN ('pending','published','rejected')),
  image_count integer NOT NULL DEFAULT 0 CHECK(image_count BETWEEN 0 AND 10),
  published_at timestamptz);
+ALTER TABLE news_items ADD COLUMN IF NOT EXISTS content_kind text NOT NULL DEFAULT 'news';
+UPDATE news_items SET content_kind='investigation'
+WHERE content_kind='news' AND feed_id IN (SELECT id FROM news_feeds WHERE feed_url='https://www.propublica.org/feeds/propublica/main');
+UPDATE news_items SET content_kind='article'
+WHERE content_kind='news' AND feed_id IN (SELECT id FROM news_feeds WHERE feed_url='https://www.madamasr.com/en/feed/');
 ALTER TABLE news_items ADD COLUMN IF NOT EXISTS country_code char(2);
 ALTER TABLE news_items ADD COLUMN IF NOT EXISTS category text NOT NULL DEFAULT 'general';
 UPDATE news_items SET country_code = f.country_code FROM news_feeds f WHERE news_items.feed_id=f.id AND news_items.country_code IS NULL;
@@ -852,7 +857,7 @@ FROM news_items WHERE status='published'",conn);
         if(!Configured)return new {items=Array.Empty<object>(),total=0L,page,pages=1L};
         await using var conn=await Open(ct);
         const string regionSql="CASE WHEN i.country_code='EG' THEN 'egyptian' WHEN i.country_code IN ('SA','AE','QA','KW','BH','OM','JO','LB','SY','IQ','YE','PS','MA','DZ','TN','LY','SD','MR','SO','DJ','KM') THEN 'arab' ELSE 'world' END";
-        var where="i.status='published' AND (@q<>'' OR i.original_published_at >= now()-interval '4 days') AND (@country='' OR i.country_code=@country) AND (@category='' OR i.category=@category) AND (@region='' OR "+regionSql+"=@region) AND (@source='' OR f.name=@source) AND (@q='' OR COALESCE(i.title_ar,i.title,'') ILIKE @pattern OR COALESCE(i.subject,'') ILIKE @pattern OR f.name ILIKE @pattern OR COALESCE(i.author_name,'') ILIKE @pattern)";
+        var where="i.status='published' AND (i.content_kind<>'news' OR @q<>'' OR i.original_published_at >= now()-interval '4 days') AND (@country='' OR i.country_code=@country) AND (@category='' OR i.category=@category) AND (@region='' OR "+regionSql+"=@region) AND (@source='' OR f.name=@source) AND (@q='' OR COALESCE(i.title_ar,i.title,'') ILIKE @pattern OR COALESCE(i.subject,'') ILIKE @pattern OR f.name ILIKE @pattern OR COALESCE(i.author_name,'') ILIKE @pattern)";
         await using var count=new NpgsqlCommand("SELECT count(*) FROM news_items i JOIN news_feeds f ON f.id=i.feed_id WHERE "+where,conn);
         var args=new Dictionary<string,object>{{"q",(search??"").Trim()},{"pattern","%"+(search??"").Trim().Replace("\\","\\\\").Replace("%","\\%").Replace("_","\\_")+"%"},{"country",country=="all"?"":(country??"").ToUpperInvariant()},{"category",category=="all"?"":(category??"").ToLowerInvariant()},{"region",region=="all"?"":region??""},{"source",source=="all"?"":source??""}};
         foreach(var pair in args)count.Parameters.AddWithValue(pair.Key,pair.Value);
@@ -947,7 +952,7 @@ FROM news_items WHERE status='published'",conn);
     public async Task<int> DeleteExpiredNews(CancellationToken ct)
     {
         await using var conn=await Open(ct);
-        await using var cmd=new NpgsqlCommand("DELETE FROM news_items WHERE original_published_at < now() - interval '4 days'",conn);
+        await using var cmd=new NpgsqlCommand("DELETE FROM news_items WHERE content_kind='news' AND original_published_at < now() - interval '4 days'",conn);
         return await cmd.ExecuteNonQueryAsync(ct);
     }
     public async Task<List<(long Id,string Title,string Source,string Country,string? Context)>> GetPendingAiBatch(int max,CancellationToken ct)
@@ -1089,6 +1094,15 @@ VALUES(@n,@c,@u,@a,@l) ON CONFLICT(feed_url) DO UPDATE SET name=EXCLUDED.name,co
         if(url.Contains("/category/investigations-en/",StringComparison.OrdinalIgnoreCase))return "crime";
         return null;
     }
+    private static async Task<string> FeedEditorialKind(long feedId,NpgsqlConnection conn,CancellationToken ct)
+    {
+        await using var cmd=new NpgsqlCommand("SELECT feed_url FROM news_feeds WHERE id=@id",conn);
+        cmd.Parameters.AddWithValue("id",feedId);
+        var url=(await cmd.ExecuteScalarAsync(ct))?.ToString()??"";
+        if(url.Contains("propublica.org/feeds/",StringComparison.OrdinalIgnoreCase))return "investigation";
+        if(url.Contains("madamasr.com/en/feed/",StringComparison.OrdinalIgnoreCase))return "article";
+        return "news";
+    }
     public async Task<int> Import(long feedId,bool autoPublish,IEnumerable<FeedItem> items,CancellationToken ct)
     {
         await using var conn=await Open(ct);
@@ -1096,9 +1110,10 @@ VALUES(@n,@c,@u,@a,@l) ON CONFLICT(feed_url) DO UPDATE SET name=EXCLUDED.name,co
         var feedCategory=await FeedCategory(feedId,conn,ct);
         foreach(var item in items)
         {
-            if(item.Published < DateTimeOffset.UtcNow.AddDays(-4)) continue;
-            await using var cmd=new NpgsqlCommand(@"INSERT INTO news_items(feed_id,title,title_ar,subject,original_url,author_name,original_published_at,status,published_at,country_code,category,rss_excerpt,source_image_url)
-VALUES(@f,@t,@titleAr,@s,@u,@a,@p,@status,@published,(SELECT country_code FROM news_feeds WHERE id=@f),@category,@excerpt,@image) ON CONFLICT(original_url) DO NOTHING",conn);
+            var contentKind = await FeedEditorialKind(feedId,conn,ct);
+            if(contentKind=="news" && item.Published < DateTimeOffset.UtcNow.AddDays(-4)) continue;
+            await using var cmd=new NpgsqlCommand(@"INSERT INTO news_items(feed_id,title,title_ar,subject,original_url,author_name,original_published_at,status,published_at,country_code,category,rss_excerpt,source_image_url,content_kind)
+VALUES(@f,@t,@titleAr,@s,@u,@a,@p,@status,@published,(SELECT country_code FROM news_feeds WHERE id=@f),@category,@excerpt,@image,@contentKind) ON CONFLICT(original_url) DO NOTHING",conn);
             // Avoid duplicate headlines across feeds without touching already published records.
             await using(var duplicate=new NpgsqlCommand(@"SELECT EXISTS(
 SELECT 1 FROM news_items
@@ -1111,6 +1126,7 @@ AND lower(regexp_replace(title, '[^[:alnum:]ء-ي]+', '', 'g')) =
                 if((bool)(await duplicate.ExecuteScalarAsync(ct))!) continue;
             }
             cmd.Parameters.AddWithValue("f",feedId);
+            cmd.Parameters.AddWithValue("contentKind",contentKind);
             cmd.Parameters.AddWithValue("t",item.Title);
             cmd.Parameters.AddWithValue("titleAr",LooksArabic(item.Title)?item.Title:DBNull.Value);
             // Do not copy full article bodies. Excerpts require publisher permission and are not imported by default.
