@@ -209,4 +209,17 @@ function App(){
  </main>}
  <div className="fixed-data-strips"><section className="fixed-data-strip fx-strip"><div className="fixed-data-label">{t('💱 العملات','💱 Currencies')}</div><div className="fixed-data-viewport"><div className="fixed-data-marquee">{fxEntries.length?<>{[0,1].map(copy=><div className="fixed-data-group" key={copy}>{fxEntries.map(([code,value])=><span key={code}><b>{ar?(fxNames[code]||code):code}</b> {(market.rates.EGP/value).toFixed(3)} ج.م</span>)}</div>)}</>:<span>{t('بيانات الصرف غير متاحة','Exchange data unavailable')}</span>}</div></div><small className="data-disclaimer">{t('أسعار مرجعية وليست أسعار البنوك','Reference rates, not bank quotes')}</small></section><section className="fixed-data-strip weather-strip"><div className="fixed-data-label">{t('🌤️ المحافظات','🌤️ Governorates')}</div><div className="fixed-data-viewport"><div className="fixed-data-marquee">{governorateWeather.length?<>{[0,1].map(copy=><div className="fixed-data-group" key={copy}>{governorateWeather.map((g,i)=><span key={i}><b>{ar?g.governorate[0]:g.governorate[1]}</b> {Math.round(g.current.temperature_2m)}°C · {t('رطوبة','Humidity')} {g.current.relative_humidity_2m}%</span>)}</div>)}</>:<span>{t('بيانات الطقس غير متاحة','Weather unavailable')}</span>}</div></div></section><section className="fixed-data-strip prayer-strip"><div className="fixed-data-label">{t('🕌 مواقيت الصلاة','🕌 Prayer Times')}</div><div className="fixed-data-viewport"><div className="fixed-data-marquee">{prayerTimes.length?<>{[0,1].map(copy=><div className="fixed-data-group" key={copy}>{prayerTimes.map(g=><span key={g.governorate[1]}><b>{ar?g.governorate[0]:g.governorate[1]}</b> {prayerNames.map(([key,arabic,english])=><React.Fragment key={key}> · {ar?arabic:english} {String(g.timings[key]||'').split(' ')[0]}</React.Fragment>)}</span>)}</div>)}</>:<span>{t('جاري تحميل مواقيت الصلاة للمحافظات','Loading prayer times for governorates')}</span>}</div></div></section></div>{openedTickerStory&&<div className="ticker-modal-backdrop" onClick={()=>setOpenedTickerStory(null)}><article className="ticker-modal" role="dialog" aria-modal="true" aria-label={openedTickerStory.title} onClick={e=>e.stopPropagation()}><button className="ticker-modal-close" onClick={()=>setOpenedTickerStory(null)}>{t('✕ إغلاق والعودة للأخبار','✕ Close and resume')}</button><small>{openedTickerStory.source} · {new Date(openedTickerStory.publishedAt).toLocaleString(ar?'ar-EG':'en-GB',{dateStyle:'medium',timeStyle:'short',timeZone:'Africa/Cairo'})}</small><h2>{openedTickerStory.title}</h2>{newsDetail(openedTickerStory)}</article></div>}{adSlot('between')}{adSlot('before_footer')}{adSlot('footer')}<footer className="hawaslak-footer"><img src={hawaslakLogo} alt="هيوصلك نيوز" className="site-footer-logo"/><span>© 2026 · {t('نحترم حقوق المصادر الأصلية','Original publisher rights respected')}</span><span className="developer-credit">{t('تصميم وتطوير · البيان العربي','Designed and developed by Al-Bayan Al-Arabi')}</span></footer><button type="button" className="back-to-top" aria-label={t('العودة إلى أعلى الصفحة','Back to top')} title={t('العودة إلى أعلى الصفحة','Back to top')} onClick={()=>window.scrollTo({top:0,behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'})}>↑</button></div>
 }
-createRoot(document.getElementById('root')).render(<App/>);
+function SplashReady(){
+ useEffect(()=>{
+  const splash=document.getElementById('app-splash');
+  if(splash){
+   splash.style.opacity='0';
+   splash.style.pointerEvents='none';
+   const done=()=>splash.remove();
+   splash.addEventListener('transitionend',done,{once:true});
+   setTimeout(done,450);
+  }
+ },[]);
+ return <App/>;
+}
+createRoot(document.getElementById('root')).render(<SplashReady/>);
