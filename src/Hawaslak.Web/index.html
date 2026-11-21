@@ -13,7 +13,7 @@
 <link rel="canonical" href="https://hawaslak-news.onrender.com/"/>
 <link rel="alternate" hreflang="ar-EG" href="https://hawaslak-news.onrender.com/"/>
 <link rel="alternate" hreflang="x-default" href="https://hawaslak-news.onrender.com/"/>
-<script type="application/ld+json">{"@context":"https://schema.org","@type":"NewsMediaOrganization","name":"هيوصلك نيوز","alternateName":"Hawaslak News","url":"https://hawaslak-news.onrender.com/","logo":{"@type":"ImageObject","url":"https://hawaslak-news.onrender.com/news-logo.png"},"inLanguage":"ar"}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"NewsMediaOrganization","name":"هيوصلك نيوز","alternateName":"Hawaslak News","url":"https://hawaslak-news.onrender.com/","logo":{"@type":"ImageObject","url":"https://hawaslak-news.onrender.com/news-logo.png?v=20261121"},"inLanguage":"ar"}</script>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebSite","name":"هيوصلك نيوز","url":"https://hawaslak-news.onrender.com/","inLanguage":"ar"}</script>
 <meta property="og:type" content="website"/>
 <meta property="og:locale" content="ar_EG"/>
@@ -21,18 +21,34 @@
 <meta property="og:title" content="هيوصلك نيوز | آخر الأخبار المصرية والعربية والعالمية"/>
 <meta property="og:description" content="تابع أحدث الأخبار المصرية والعربية والعالمية على هيوصلك نيوز."/>
 <meta property="og:url" content="https://hawaslak-news.onrender.com/"/>
-<meta property="og:image" content="https://hawaslak-news.onrender.com/news-logo.png"/>
-<meta property="og:image:secure_url" content="https://hawaslak-news.onrender.com/news-logo.png"/>
+<meta property="og:image" content="https://hawaslak-news.onrender.com/news-logo.png?v=20261121"/>
+<meta property="og:image:secure_url" content="https://hawaslak-news.onrender.com/news-logo.png?v=20261121"/>
 <meta property="og:image:type" content="image/png"/>
+<meta property="og:image:alt" content="هيوصلك نيوز - الأخبار المصرية والعربية والعالمية"/>
 <meta property="og:image:alt" content="شعار هيوصلك نيوز"/>
 <meta name="twitter:card" content="summary_large_image"/>
 <meta name="twitter:title" content="هيوصلك نيوز | آخر الأخبار"/>
 <meta name="twitter:description" content="الأخبار المصرية والعربية والعالمية"/>
-<meta name="twitter:image" content="https://hawaslak-news.onrender.com/news-logo.png"/>
+<meta name="twitter:image" content="https://hawaslak-news.onrender.com/news-logo.png?v=20261121"/>
 <link rel="icon" type="image/png" href="/news-logo.png"/>
 <link rel="apple-touch-icon" href="/news-logo.png"/>
 <link rel="manifest" href="/manifest.webmanifest"/>
 <title>هيوصلك نيوز | Hawaslak News</title>
 </head>
-<body><div id="root"></div><script type="module" src="/src/main.jsx"></script></body>
+<body>
+<div id="app-splash" role="status" aria-label="جاري تحميل هيوصلك نيوز">
+ <img src="/news-logo.png" alt="هيوصلك نيوز" width="260" height="170"/>
+ <div class="app-splash-spinner" aria-hidden="true"></div>
+ <span>جاري التحميل...</span>
+</div>
+<div id="root"></div>
+<style>
+#app-splash{position:fixed;inset:0;z-index:99999;background:linear-gradient(180deg,#f9fcff,#e8f3fb);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:15px;color:#153e60;font:600 15px system-ui,sans-serif;transition:opacity .25s ease}
+#app-splash img{display:block;width:min(72vw,290px);height:auto;max-height:210px;object-fit:contain}
+.app-splash-spinner{width:37px;height:37px;border:4px solid #c4d6e5;border-top-color:#c7092e;border-radius:50%;animation:app-splash-spin .85s linear infinite}
+@keyframes app-splash-spin{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.app-splash-spinner{animation-duration:2s}}
+</style>
+<script type="module" src="/src/main.jsx"></script>
+</body>
 </html>
