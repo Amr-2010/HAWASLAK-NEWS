@@ -56,11 +56,11 @@ sealed class NewsAiWorker : BackgroundService
         {
             if(!Environment.GetEnvironmentVariable("AI_AUTO_PREPARE")?.Equals("false",StringComparison.OrdinalIgnoreCase)==true)
             {
-                try{await ProcessBatch(10,ct);}
+                try{await ProcessBatch(20,ct);}
                 catch(OperationCanceledException) when(ct.IsCancellationRequested){break;}
                 catch(Exception ex){_logger.LogWarning("AI batch encountered a temporary failure: {Message}",ex.Message);}
             }
-            try{await Task.Delay(TimeSpan.FromMinutes(30),ct);}catch(OperationCanceledException){break;}
+            try{await Task.Delay(TimeSpan.FromMinutes(15),ct);}catch(OperationCanceledException){break;}
         }
     }
 }
