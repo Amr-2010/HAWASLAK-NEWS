@@ -268,11 +268,24 @@ INSERT INTO news_visitor_days(visitor_id,visit_date) VALUES(@id,(now() AT TIME Z
     public async Task<long> SaveAd(AdInput input,CancellationToken ct)
     {
         await using var conn=await Open(ct);
-        await using var cmd=new NpgsqlCommand(@"INSERT INTO news_ads(id,title,image_url,target_url,placement,enabled,starts_at,ends_at)
-VALUES(COALESCE(@id,nextval(pg_get_serial_sequence('news_ads','id'))),@title,@image,@target,@placement,@enabled,@start,@end)
-ON CONFLICT(id) DO UPDATE SET title=EXCLUDED.title,image_url=EXCLUDED.image_url,target_url=EXCLUDED.target_url,placement=EXCLUDED.placement,enabled=EXCLUDED.enabled,starts_at=EXCLUDED.starts_at,ends_at=EXCLUDED.ends_at RETURNING id",conn);
-        cmd.Parameters.AddWithValue("id",(object?)input.Id??DBNull.Value);cmd.Parameters.AddWithValue("title",input.Title.Trim());cmd.Parameters.AddWithValue("image",input.ImageUrl??"");cmd.Parameters.AddWithValue("target",input.TargetUrl??"");cmd.Parameters.AddWithValue("placement",input.Placement);cmd.Parameters.AddWithValue("enabled",input.Enabled);cmd.Parameters.AddWithValue("start",(object?)input.StartsAt??DBNull.Value);cmd.Parameters.AddWithValue("end",(object?)input.EndsAt??DBNull.Value);
-        return Convert.ToInt64(await cmd.ExecuteScalarAsync(ct));
+        // PostgreSQL GENERATED ALWAYS identity columns must use DEFAULT on inserts.
+        // A supplied id is used only when updating an existing advertisement.
+        var updating=input.Id.HasValue&&input.Id.Value>0;
+        var sql=updating
+            ? @"UPDATE news_ads SET title=@title,image_url=@image,target_url=@target,placement=@placement,enabled=@enabled,starts_at=@start,ends_at=@end WHERE id=@id RETURNING id"
+            : @"INSERT INTO news_ads(title,image_url,target_url,placement,enabled,starts_at,ends_at) VALUES(@title,@image,@target,@placement,@enabled,@start,@end) RETURNING id";
+        await using var cmd=new NpgsqlCommand(sql,conn);
+        if(updating)cmd.Parameters.AddWithValue("id",input.Id!.Value);
+        cmd.Parameters.AddWithValue("title",input.Title.Trim());
+        cmd.Parameters.AddWithValue("image",input.ImageUrl??"");
+        cmd.Parameters.AddWithValue("target",input.TargetUrl??"");
+        cmd.Parameters.AddWithValue("placement",input.Placement);
+        cmd.Parameters.AddWithValue("enabled",input.Enabled);
+        cmd.Parameters.Add("start",NpgsqlTypes.NpgsqlDbType.TimestampTz).Value=(object?)input.StartsAt?.ToUniversalTime()??DBNull.Value;
+        cmd.Parameters.Add("end",NpgsqlTypes.NpgsqlDbType.TimestampTz).Value=(object?)input.EndsAt?.ToUniversalTime()??DBNull.Value;
+        var result=await cmd.ExecuteScalarAsync(ct);
+        if(result is null)throw new InvalidOperationException("Advertisement not found");
+        return Convert.ToInt64(result);
     }
     public async Task<bool> DeleteAd(long id,CancellationToken ct)
     {
