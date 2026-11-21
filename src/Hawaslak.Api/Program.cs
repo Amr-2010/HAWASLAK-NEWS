@@ -21,7 +21,7 @@ app.MapGet("/api/ads",async (NewsStore store,CancellationToken ct)=>Results.Ok(a
 app.MapGet("/api/admin/ads",async (HttpRequest request,NewsStore store,CancellationToken ct)=>Authorized(request)?Results.Ok(await store.AdminAds(ct)):Results.Unauthorized());
 app.MapPost("/api/admin/ads",async (HttpRequest request,NewsStore store,AdInput input,CancellationToken ct)=>{
  if(!Authorized(request))return Results.Unauthorized();
- if(string.IsNullOrWhiteSpace(input.Title)||input.Title.Length>160||input.ImageUrl?.Length>400000||input.TargetUrl?.Length>1500||!new[]{"top","sidebar","between","footer"}.Contains(input.Placement))return Results.BadRequest(new {error="Invalid advertisement"});
+ if(string.IsNullOrWhiteSpace(input.Title)||input.Title.Length>160||input.ImageUrl?.Length>400000||input.TargetUrl?.Length>1500||!new[]{"top","sidebar","between","footer","after_categories","before_headlines","after_headlines","before_footer"}.Contains(input.Placement))return Results.BadRequest(new {error="Invalid advertisement"});
  if(!string.IsNullOrWhiteSpace(input.TargetUrl)&&(!Uri.TryCreate(input.TargetUrl,UriKind.Absolute,out var target)||target.Scheme!="https"))return Results.BadRequest(new {error="Destination must use HTTPS"});
  if(!string.IsNullOrWhiteSpace(input.ImageUrl)&&!(input.ImageUrl.StartsWith("https://",StringComparison.OrdinalIgnoreCase)||System.Text.RegularExpressions.Regex.IsMatch(input.ImageUrl,@"^data:image/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$",System.Text.RegularExpressions.RegexOptions.IgnoreCase)))return Results.BadRequest(new {error="Invalid image format"});
  return Results.Ok(new {id=await store.SaveAd(input,ct)});
