@@ -336,6 +336,21 @@ VALUES
 ('ProPublica Investigations','US','https://www.propublica.org/feeds/propublica/main',true,false,'Investigative journalism discovery; no full-text republication rights'),
 ('Mada Masr English Features','EG','https://www.madamasr.com/en/feed/',true,false,'Egyptian analysis and features discovery; no full-text republication rights')
 ON CONFLICT(feed_url) DO NOTHING;
+-- Verified publisher-documented and live RSS endpoints for Egyptian, Arab and global coverage.
+-- RSS discovery does not grant republication rights to full articles or images.
+INSERT INTO news_feeds(name,country_code,feed_url,enabled,auto_publish_allowed,license_notes)
+VALUES
+('Youm7 Egyptian Culture','EG','https://www.youm7.com/rss/SectionRss?SectionID=94',true,false,'Literature and culture; publisher RSS; discovery only'),
+('Youm7 Egyptian Reports','EG','https://www.youm7.com/rss/SectionRss?SectionID=97',true,false,'Egyptian reports; discovery only'),
+('Youm7 Egyptian Sports','EG','https://www.youm7.com/rss/SectionRss?SectionID=298',true,false,'Egyptian sports; discovery only'),
+('Al Yaum Arab Culture','SA','https://www.alyaum.com/rssFeed/1008/107',true,false,'Arab culture; publisher-listed RSS; discovery only'),
+('Al Yaum Arts and Culture','SA','https://www.alyaum.com/rssFeed/1008',true,false,'Arab culture and arts; publisher-listed RSS; discovery only'),
+('Al Yaum Arab World','SA','https://www.alyaum.com/rssFeed/1005/95',true,false,'Arab world news; discovery only'),
+('Al Yaum World','SA','https://www.alyaum.com/rssFeed/1005/94',true,false,'International news; discovery only'),
+('Al Yaum Opinion','SA','https://www.alyaum.com/rssFeed/1010/136',true,false,'Opinion articles; discovery only'),
+('Guardian Books','GB','https://www.theguardian.com/books/rss',true,false,'Books and literary criticism; publisher-documented RSS; discovery only'),
+('Guardian Culture','GB','https://www.theguardian.com/culture/rss',true,false,'Culture; publisher-documented RSS; discovery only')
+ON CONFLICT(feed_url) DO NOTHING;
 -- Curated discovery candidates: each feed is monitored independently; publishing remains manual until rights are verified.
 INSERT INTO news_feeds(name,country_code,feed_url,enabled,auto_publish_allowed,license_notes)
 VALUES
@@ -1114,7 +1129,7 @@ VALUES(@n,@c,@u,@a,@l) ON CONFLICT(feed_url) DO UPDATE SET name=EXCLUDED.name,co
         if(url.Contains("SectionID=48",StringComparison.OrdinalIgnoreCase)||url.Contains("rss/7.aspx",StringComparison.OrdinalIgnoreCase))return "arts";
         if(url.Contains("/category/politics-en/",StringComparison.OrdinalIgnoreCase))return "politics";
         if(url.Contains("/category/economics-en/",StringComparison.OrdinalIgnoreCase))return "economy";
-        if(url.Contains("/category/culture/",StringComparison.OrdinalIgnoreCase)||url.Contains("SectionID=94",StringComparison.OrdinalIgnoreCase))return "literature";
+        if(url.Contains("/category/culture/",StringComparison.OrdinalIgnoreCase)||url.Contains("SectionID=94",StringComparison.OrdinalIgnoreCase)||url.Contains("alyaum.com/rssFeed/1008",StringComparison.OrdinalIgnoreCase)||url.Contains("theguardian.com/books/rss",StringComparison.OrdinalIgnoreCase)||url.Contains("theguardian.com/culture/rss",StringComparison.OrdinalIgnoreCase))return "literature";
         if(url.Contains("SectionID=328",StringComparison.OrdinalIgnoreCase))return "technology";
         if(url.Contains("SectionID=298",StringComparison.OrdinalIgnoreCase)||url.Contains("SectionID=13",StringComparison.OrdinalIgnoreCase))return "sports";
         if(url.Contains("propublica.org/feeds/",StringComparison.OrdinalIgnoreCase)||url.Contains("madamasr.com/en/feed/",StringComparison.OrdinalIgnoreCase))return "general";
@@ -1128,6 +1143,7 @@ VALUES(@n,@c,@u,@a,@l) ON CONFLICT(feed_url) DO UPDATE SET name=EXCLUDED.name,co
         var url=(await cmd.ExecuteScalarAsync(ct))?.ToString()??"";
         if(url.Contains("propublica.org/feeds/",StringComparison.OrdinalIgnoreCase))return "investigation";
         if(url.Contains("madamasr.com/en/feed/",StringComparison.OrdinalIgnoreCase))return "article";
+        if(url.Contains("alyaum.com/rssFeed/1010/136",StringComparison.OrdinalIgnoreCase))return "article";
         return "news";
     }
     public async Task<int> Import(long feedId,bool autoPublish,IEnumerable<FeedItem> items,CancellationToken ct)
