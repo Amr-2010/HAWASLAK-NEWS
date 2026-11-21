@@ -17,6 +17,16 @@ var app = builder.Build();
 app.UseDefaultFiles();
 app.UseStaticFiles();
 app.MapGet("/health", () => Results.Ok(new { status = "ok", app = "HAWASLAK NEWS" }));
+app.MapGet("/api/ads",async (NewsStore store,CancellationToken ct)=>Results.Ok(await store.PublicAds(ct)));
+app.MapGet("/api/admin/ads",async (HttpRequest request,NewsStore store,CancellationToken ct)=>Authorized(request)?Results.Ok(await store.AdminAds(ct)):Results.Unauthorized());
+app.MapPost("/api/admin/ads",async (HttpRequest request,NewsStore store,AdInput input,CancellationToken ct)=>{
+ if(!Authorized(request))return Results.Unauthorized();
+ if(string.IsNullOrWhiteSpace(input.Title)||input.Title.Length>160||input.ImageUrl?.Length>400000||input.TargetUrl?.Length>1500||!new[]{"top","sidebar","between","footer"}.Contains(input.Placement))return Results.BadRequest(new {error="Invalid advertisement"});
+ if(!string.IsNullOrWhiteSpace(input.TargetUrl)&&(!Uri.TryCreate(input.TargetUrl,UriKind.Absolute,out var target)||target.Scheme!="https"))return Results.BadRequest(new {error="Destination must use HTTPS"});
+ if(!string.IsNullOrWhiteSpace(input.ImageUrl)&&!(input.ImageUrl.StartsWith("https://",StringComparison.OrdinalIgnoreCase)||System.Text.RegularExpressions.Regex.IsMatch(input.ImageUrl,@"^data:image/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$",System.Text.RegularExpressions.RegexOptions.IgnoreCase)))return Results.BadRequest(new {error="Invalid image format"});
+ return Results.Ok(new {id=await store.SaveAd(input,ct)});
+});
+app.MapDelete("/api/admin/ads/{id:long}",async (long id,HttpRequest request,NewsStore store,CancellationToken ct)=>Authorized(request)?Results.Ok(new {deleted=await store.DeleteAd(id,ct)}):Results.Unauthorized());
 app.MapGet("/api/news/counts", async (NewsStore store,CancellationToken ct)=>Results.Ok(await store.PublishedNewsCounts(ct)));
 app.MapGet("/api/news/filters", async (NewsStore store,CancellationToken ct)=>Results.Ok(await store.NewsFilters(ct)));
 app.MapGet("/api/news", async (NewsStore store, string? country, string? category, string? region, string? source, string? q, int? page, int? pageSize, CancellationToken ct) => Results.Ok(await store.NewsPage(country,category,region,source,q,page??1,pageSize??40,ct)));
@@ -202,6 +212,7 @@ bool Authorized(HttpRequest request)=>SessionUser(request)!=null;
 record AdminLogin(string Username,string Password);
 record NewAdmin(string Username,string Password);
 record SiteCategory(string Id,string Ar,string En,string Icon);
+record AdInput(long? Id,string Title,string? ImageUrl,string? TargetUrl,string Placement,bool Enabled,DateTimeOffset? StartsAt,DateTimeOffset? EndsAt);
 record SiteSettingsInput(string? LogoUrl,List<SiteCategory> Categories,string? BannerTitle=null,string? BannerSubtitle=null,string? BannerImageUrl=null,string? BannerLink=null,string? BannerButtonText=null);
 record FeatureInput(long? Id,string Kind,string Title,string Body,string? Excerpt,string? CoverUrl,bool Published);
 record SourceInput(string Name, string CountryCode, string FeedUrl, bool AutoPublishAllowed, string LicenseNotes);
@@ -212,6 +223,37 @@ record FeedItem(string Title, string Url, string? Author, DateTimeOffset Publish
 
 sealed class NewsStore
 {
+    public async Task<object> PublicAds(CancellationToken ct)
+    {
+        if(!Configured)return Array.Empty<object>();
+        await using var conn=await Open(ct);
+        await using var cmd=new NpgsqlCommand("SELECT id,title,image_url,target_url,placement FROM news_ads WHERE enabled=true AND (starts_at IS NULL OR starts_at<=now()) AND (ends_at IS NULL OR ends_at>=now()) ORDER BY id DESC",conn);
+        await using var r=await cmd.ExecuteReaderAsync(ct);var rows=new List<object>();
+        while(await r.ReadAsync(ct))rows.Add(new {id=r.GetInt64(0),title=r.GetString(1),imageUrl=r.GetString(2),targetUrl=r.GetString(3),placement=r.GetString(4)});
+        return rows;
+    }
+    public async Task<object> AdminAds(CancellationToken ct)
+    {
+        await using var conn=await Open(ct);
+        await using var cmd=new NpgsqlCommand("SELECT id,title,image_url,target_url,placement,enabled,starts_at,ends_at FROM news_ads ORDER BY id DESC",conn);
+        await using var r=await cmd.ExecuteReaderAsync(ct);var rows=new List<object>();
+        while(await r.ReadAsync(ct))rows.Add(new {id=r.GetInt64(0),title=r.GetString(1),imageUrl=r.GetString(2),targetUrl=r.GetString(3),placement=r.GetString(4),enabled=r.GetBoolean(5),startsAt=r.IsDBNull(6)?(DateTime?)null:r.GetDateTime(6),endsAt=r.IsDBNull(7)?(DateTime?)null:r.GetDateTime(7)});
+        return rows;
+    }
+    public async Task<long> SaveAd(AdInput input,CancellationToken ct)
+    {
+        await using var conn=await Open(ct);
+        await using var cmd=new NpgsqlCommand(@"INSERT INTO news_ads(id,title,image_url,target_url,placement,enabled,starts_at,ends_at)
+VALUES(COALESCE(@id,nextval(pg_get_serial_sequence('news_ads','id'))),@title,@image,@target,@placement,@enabled,@start,@end)
+ON CONFLICT(id) DO UPDATE SET title=EXCLUDED.title,image_url=EXCLUDED.image_url,target_url=EXCLUDED.target_url,placement=EXCLUDED.placement,enabled=EXCLUDED.enabled,starts_at=EXCLUDED.starts_at,ends_at=EXCLUDED.ends_at RETURNING id",conn);
+        cmd.Parameters.AddWithValue("id",(object?)input.Id??DBNull.Value);cmd.Parameters.AddWithValue("title",input.Title.Trim());cmd.Parameters.AddWithValue("image",input.ImageUrl??"");cmd.Parameters.AddWithValue("target",input.TargetUrl??"");cmd.Parameters.AddWithValue("placement",input.Placement);cmd.Parameters.AddWithValue("enabled",input.Enabled);cmd.Parameters.AddWithValue("start",(object?)input.StartsAt??DBNull.Value);cmd.Parameters.AddWithValue("end",(object?)input.EndsAt??DBNull.Value);
+        return Convert.ToInt64(await cmd.ExecuteScalarAsync(ct));
+    }
+    public async Task<bool> DeleteAd(long id,CancellationToken ct)
+    {
+        await using var conn=await Open(ct);await using var cmd=new NpgsqlCommand("DELETE FROM news_ads WHERE id=@id",conn);cmd.Parameters.AddWithValue("id",id);return await cmd.ExecuteNonQueryAsync(ct)>0;
+    }
+
     public async Task<bool> CheckAdmin(string username,string password,CancellationToken ct)
     {
         await using var conn=await Open(ct);
@@ -436,6 +478,7 @@ INSERT INTO news_feeds(name,country_code,feed_url,enabled,auto_publish_allowed,l
 ('AP via Google News','US','https://news.google.com/rss/search?q=when:24h+site:apnews.com&hl=en-US&gl=US&ceid=US:en',true,false,'Google News discovery, NOT an AP licensed feed; link only')
 ON CONFLICT(feed_url) DO NOTHING;
 CREATE TABLE IF NOT EXISTS site_settings (key text PRIMARY KEY,value text NOT NULL);
+CREATE TABLE IF NOT EXISTS news_ads (id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,title text NOT NULL,image_url text NOT NULL DEFAULT '',target_url text NOT NULL DEFAULT '',placement text NOT NULL,enabled boolean NOT NULL DEFAULT false,starts_at timestamptz,ends_at timestamptz,created_at timestamptz NOT NULL DEFAULT now());
 -- Verified Egyptian RSS discovery endpoints, November 2026 (independently reported active).
 INSERT INTO news_feeds(name,country_code,feed_url,enabled,auto_publish_allowed,license_notes) VALUES
 ('Youm7 Egyptian Reports','EG','https://www.youm7.com/rss/SectionRss?SectionID=97',true,false,'RSS discovery; source copyright retained'),
