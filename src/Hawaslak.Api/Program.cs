@@ -286,6 +286,17 @@ VALUES
  ('DW English','DE','https://rss.dw.com/rdf/rss-en-all',true,false,'RSS discovery only; review rights before publication'),
  ('The Guardian World','GB','https://www.theguardian.com/world/rss',true,false,'RSS discovery only; review rights before publication')
 ON CONFLICT(feed_url) DO NOTHING;
+-- Additional section-specific discovery feeds, validated against published RSS directories.
+-- Import headline metadata and original links only; do not republish copyrighted full text.
+INSERT INTO news_feeds(name,country_code,feed_url,enabled,auto_publish_allowed,license_notes)
+VALUES
+('BBC Business','GB','https://feeds.bbci.co.uk/news/business/rss.xml',true,false,'RSS headline discovery; retain attribution and original link'),
+('BBC Technology','GB','https://feeds.bbci.co.uk/news/technology/rss.xml',true,false,'RSS headline discovery; retain attribution and original link'),
+('BBC Health','GB','https://feeds.bbci.co.uk/news/health/rss.xml',true,false,'RSS headline discovery; retain attribution and original link'),
+('BBC Science','GB','https://feeds.bbci.co.uk/news/science_and_environment/rss.xml',true,false,'RSS headline discovery; retain attribution and original link'),
+('BBC Entertainment','GB','https://feeds.bbci.co.uk/news/entertainment_and_arts/rss.xml',true,false,'RSS headline discovery; retain attribution and original link'),
+('BBC Sport','GB','https://feeds.bbci.co.uk/sport/rss.xml',true,false,'RSS headline discovery; retain attribution and original link')
+ON CONFLICT(feed_url) DO NOTHING;
 -- Curated discovery candidates: each feed is monitored independently; publishing remains manual until rights are verified.
 INSERT INTO news_feeds(name,country_code,feed_url,enabled,auto_publish_allowed,license_notes)
 VALUES
