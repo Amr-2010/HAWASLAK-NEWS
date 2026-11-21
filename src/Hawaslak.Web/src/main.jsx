@@ -10,7 +10,7 @@ function App(){
   const heartbeat=()=>{if(document.visibilityState==='visible')fetch('/api/visitors/heartbeat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({visitorId})}).catch(()=>{})};
   const refresh=()=>fetch('/api/visitors/stats').then(r=>r.ok?r.json():null).then(data=>{if(data)setVisitorStats(data)}).catch(()=>{});
   heartbeat();refresh();
-  const timer=setInterval(()=>{if(document.visibilityState==='visible'){heartbeat();refresh()}},60000);
+  const timer=setInterval(()=>{if(document.visibilityState==='visible'){heartbeat();refresh()}},180000);
   document.addEventListener('visibilitychange',heartbeat);
   return()=>{clearInterval(timer);document.removeEventListener('visibilitychange',heartbeat)};
  },[]);
