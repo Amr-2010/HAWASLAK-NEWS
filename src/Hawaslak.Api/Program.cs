@@ -1309,6 +1309,8 @@ sealed class NewsCollector : BackgroundService
     private readonly IHttpClientFactory _clients;
     private readonly ILogger<NewsCollector> _logger;
     private readonly SemaphoreSlim _gate=new(1,1);
+    private IReadOnlyList<(long Id,string Url,bool AutoPublish)> _hourlyFeeds=Array.Empty<(long,string,bool)>();
+    private DateTimeOffset _lastFeedRefresh=DateTimeOffset.MinValue;
     public NewsCollector(NewsStore store,IHttpClientFactory clients,ILogger<NewsCollector> logger)
     { _store=store;_clients=clients;_logger=logger; }
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -1327,7 +1329,23 @@ sealed class NewsCollector : BackgroundService
         try
         {
             var total=0;
-            foreach(var feed in await _store.Feeds(ct))
+            // Reload source configuration once an hour; fetch news from cached sources every 15 minutes.
+            // A failed refresh leaves the last successful source list available for retries.
+            if (_lastFeedRefresh==DateTimeOffset.MinValue || DateTimeOffset.UtcNow-_lastFeedRefresh>=TimeSpan.FromHours(1))
+            {
+                try
+                {
+                    _hourlyFeeds=await _store.Feeds(ct);
+                    _lastFeedRefresh=DateTimeOffset.UtcNow;
+                    _logger.LogInformation("Hourly RSS source refresh completed: {Count} enabled sources",_hourlyFeeds.Count);
+                }
+                catch(Exception e)
+                {
+                    _logger.LogError(e,"Hourly RSS source refresh failed; retrying next news cycle");
+                    if(_hourlyFeeds.Count==0)throw;
+                }
+            }
+            foreach(var feed in _hourlyFeeds)
             {
                 try
                 {
